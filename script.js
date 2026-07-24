@@ -126,7 +126,11 @@ class UIManager {
       hudGear: document.getElementById("hud-gear-on-screen")
     };
 
-    this.userWindOpacity = 0.0;
+    // Initialize from the slider so the wind matches the value shown in the
+    // UI (2.5%) on load instead of starting invisible until the slider moves.
+    this.userWindOpacity = this.dom.opacitySlider
+      ? parseFloat(this.dom.opacitySlider.value)
+      : 0.025;
     this.currentViewMode = 0;
 
     this.bindEvents();
