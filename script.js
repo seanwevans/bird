@@ -31,16 +31,21 @@ class InputController {
   }
   bindEvents() {
     window.addEventListener("keydown", (e) => {
-      if (e.key in this.keys) this.keys[e.key] = true;
-      if (e.code in this.keys) this.keys[e.code] = true;
-      if ((e.key === "g" || e.key === "G") && !e.repeat)
-        this.gearDown = !this.gearDown;
+      const key = this.normalizeKey(e.key);
+      if (key in this.keys) this.keys[key] = true;
+      if (key === "g" && !e.repeat) this.gearDown = !this.gearDown;
     });
 
     window.addEventListener("keyup", (e) => {
-      if (e.key in this.keys) this.keys[e.key] = false;
-      if (e.code in this.keys) this.keys[e.code] = false;
+      const key = this.normalizeKey(e.key);
+      if (key in this.keys) this.keys[key] = false;
     });
+  }
+  normalizeKey(key) {
+    // Letter keys arrive uppercase while Shift (throttle up) is held, which
+    // dropped WASDQE inputs. Lowercase single characters so the letter
+    // controls keep working; leave named keys like "Shift"/"Control" intact.
+    return key.length === 1 ? key.toLowerCase() : key;
   }
   update() {
     this.pitch = 0;
