@@ -1,0 +1,44 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background-color: #5dade2;
+  color: #ffffff;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#canvas-container {
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+#ui-layer {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 10;
+  width: 320px;
+  pointer-events: none;
+}
+
+.control-panel {
+  background: rgba(10, 15, 25, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 255, 255, 0.15);
+  pointer-events: auto;
+}
+
+.view-btn.active {
+  background-color: rgba(0, 255, 255, 0.2);
+  border-color: rgba(0, 255, 255, 0.6);
+  color: #00ffff;
+}
+
+.fpm-wing {
+  position: absolute;
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+}
