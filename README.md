@@ -13,39 +13,49 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Adjustable wind visualization
 - Keyboard and gamepad support
 
-## Run locally
+## Development
 
-No build step is required. Start a local web server from the project directory:
+Install the pinned development dependencies and start Vite:
 
 ```bash
-python3 -m http.server 8000
+npm ci
+npm run dev
 ```
 
-Then open [http://localhost:8000](http://localhost:8000) in a modern browser.
+Vite prints the local URL to open in a modern browser. The simulator remains a
+static application and the production output can be generated with `npm run build`.
 
 > The simulator loads Tailwind CSS, Three.js, and Cannon.js from CDNs, so an internet connection is required.
+
+Run all formatting, lint, unit-test, and production-build checks with:
+
+```bash
+npm run check
+```
+
+Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 
 ## Controls
 
 ### Keyboard
 
-| Input | Action |
-| --- | --- |
-| `W` / `S` | Pitch down / up |
-| `A` / `D` | Roll left / right |
-| `Q` / `E` | Yaw left / right |
+| Input               | Action                       |
+| ------------------- | ---------------------------- |
+| `W` / `S`           | Pitch down / up              |
+| `A` / `D`           | Roll left / right            |
+| `Q` / `E`           | Yaw left / right             |
 | `Shift` / `Control` | Increase / decrease throttle |
-| `G` | Toggle landing gear |
+| `G`                 | Toggle landing gear          |
 
 ### Gamepad
 
-| Input | Action |
-| --- | --- |
-| Left stick | Pitch and roll |
-| Right stick | Orbit the camera |
-| Left / right bumper | Yaw |
+| Input                | Action                       |
+| -------------------- | ---------------------------- |
+| Left stick           | Pitch and roll               |
+| Right stick          | Orbit the camera             |
+| Left / right bumper  | Yaw                          |
 | Left / right trigger | Decrease / increase throttle |
-| A / Cross | Toggle landing gear |
-| B / Circle or Start | Reset the aircraft |
+| A / Cross            | Toggle landing gear          |
+| B / Circle or Start  | Reset the aircraft           |
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
