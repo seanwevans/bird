@@ -14,9 +14,9 @@
 
   <div id="canvas-container"></div>
 
-  <div id="hud-center" class="absolute top-1/2 left-1/2
+  <div id="hud-center" aria-hidden="true" class="absolute top-1/2 left-1/2
                               transform -translate-x-1/2 -translate-y-1/2
-                              w-96 h-96 pointer-events-none z-10
+                              pointer-events-none z-10
                               overflow-hidden rounded-full
                               border border-cyan-500/10">
 
@@ -128,15 +128,17 @@
 
     <div class="flex items-center gap-2 mb-2">
 
-      <button id="hud-toggle" class="bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold py-1.5 px-3 rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md flex items-center gap-2">
+      <button id="hud-toggle" type="button" aria-expanded="false" aria-controls="hud-panel" class="ui-button bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md flex items-center gap-2">
 
-        <svg id="hud-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg id="hud-chevron" aria-hidden="true" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
         </svg>
         HUD
       </button>
 
-      <div id="controller-status" class="bg-slate-800/80 text-[10px] font-bold py-1.5 px-3 rounded border border-slate-500/30 shadow-lg text-slate-400 uppercase tracking-tighter">
+      <button id="help-toggle" type="button" aria-haspopup="dialog" class="ui-button bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md">Controls</button>
+
+      <div id="controller-status" role="status" aria-live="polite" class="status-chip bg-slate-800/80 text-[10px] font-bold rounded border border-slate-500/30 shadow-lg text-slate-400 uppercase tracking-tighter">
         Gamepad: Disconnected
       </div>
 
@@ -196,7 +198,7 @@
 
             <div class="flex justify-between text-xs mb-1 text-gray-300 font-sans">
 
-              <span>Wind Opacity</span>
+              <label for="opacity-slider">Wind Opacity</label>
 
               <span id="opacity-val">2.5%</span>
 
@@ -206,17 +208,17 @@
 
           </div>
 
-          <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Sensor View</div>
+          <div id="sensor-view-label" class="text-[10px] text-gray-400 uppercase tracking-widest mb-2">Sensor View</div>
 
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-2" role="group" aria-labelledby="sensor-view-label">
 
-            <button class="view-btn active bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="0">Thermal</button>
+            <button type="button" aria-pressed="true" class="view-btn active bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded border border-slate-600 transition-all" data-mode="0">Thermal</button>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="1">Laminar</button>
+            <button type="button" aria-pressed="false" class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded border border-slate-600 transition-all" data-mode="1">Laminar</button>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="2">Velocity</button>
+            <button type="button" aria-pressed="false" class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded border border-slate-600 transition-all" data-mode="2">Velocity</button>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="3">X-Ray</button>
+            <button type="button" aria-pressed="false" class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded border border-slate-600 transition-all" data-mode="3">X-Ray</button>
 
           </div>
 
@@ -226,6 +228,28 @@
 
     </div>
 
+  </div>
+
+  <div id="flight-status" class="sr-only" role="status" aria-live="polite"></div>
+
+  <div id="help-dialog" class="help-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="help-card" tabindex="-1">
+      <div class="flex items-center justify-between gap-4">
+        <h2 id="help-title" class="text-lg font-bold text-cyan-300">Flight controls</h2>
+        <button id="help-close" type="button" class="ui-button rounded border border-cyan-500/40 text-cyan-200" aria-label="Close controls help">Close</button>
+      </div>
+      <div class="help-grid">
+        <section aria-labelledby="keyboard-title">
+          <h3 id="keyboard-title">Keyboard</h3>
+          <dl><div><dt>W / S</dt><dd>Pitch down / up</dd></div><div><dt>A / D</dt><dd>Roll left / right</dd></div><div><dt>Q / E</dt><dd>Yaw left / right</dd></div><div><dt>Shift / Control</dt><dd>Throttle up / down</dd></div><div><dt>G</dt><dd>Toggle landing gear</dd></div></dl>
+        </section>
+        <section aria-labelledby="gamepad-title">
+          <h3 id="gamepad-title">Gamepad</h3>
+          <dl><div><dt>Left stick</dt><dd>Pitch and roll</dd></div><div><dt>Right stick</dt><dd>Orbit camera</dd></div><div><dt>Bumpers</dt><dd>Yaw</dd></div><div><dt>Triggers</dt><dd>Throttle</dd></div><div><dt>A / Cross</dt><dd>Landing gear</dd></div><div><dt>B / Circle</dt><dd>Reset aircraft</dd></div></dl>
+        </section>
+      </div>
+      <p class="text-sm text-slate-300">Press <kbd>Escape</kbd> to close this window.</p>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

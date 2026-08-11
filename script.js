@@ -32,6 +32,8 @@ class InputController {
   bindEvents() {
     window.addEventListener("keydown", (e) => {
       const key = this.normalizeKey(e.key);
+      if (!this.shouldHandleKey(e, key)) return;
+      e.preventDefault();
       if (key in this.keys) this.keys[key] = true;
       if (key === "g" && !e.repeat) this.gearDown = !this.gearDown;
     });
@@ -40,6 +42,20 @@ class InputController {
       const key = this.normalizeKey(e.key);
       if (key in this.keys) this.keys[key] = false;
     });
+    window.addEventListener("blur", () => this.clearHeldInputs());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.clearHeldInputs();
+    });
+  }
+  shouldHandleKey(event, key) {
+    const target = event.target;
+    const editing = target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(target.tagName));
+    const flightKey = key in this.keys || key === "g";
+    return flightKey && !editing && !event.metaKey && !event.altKey && !(event.ctrlKey && key !== "Control");
+  }
+  clearHeldInputs() {
+    Object.keys(this.keys).forEach((key) => { this.keys[key] = false; });
+    this.pitch = this.roll = this.yaw = 0;
   }
   normalizeKey(key) {
     // Letter keys arrive uppercase while Shift (throttle up) is held, which
@@ -128,7 +144,11 @@ class UIManager {
       hudPanel: document.getElementById("hud-panel"),
       hudChevron: document.getElementById("hud-chevron"),
       controllerStatus: document.getElementById("controller-status"),
-      hudGear: document.getElementById("hud-gear-on-screen")
+      hudGear: document.getElementById("hud-gear-on-screen"),
+      flightStatus: document.getElementById("flight-status"),
+      helpToggle: document.getElementById("help-toggle"),
+      helpDialog: document.getElementById("help-dialog"),
+      helpClose: document.getElementById("help-close")
     };
 
     // Initialize from the slider so the wind matches the value shown in the
@@ -145,7 +165,33 @@ class UIManager {
       this.dom.hudToggle.addEventListener("click", () => {
         this.dom.hudPanel.classList.toggle("hidden");
         this.dom.hudChevron.classList.toggle("rotate-180");
+        this.dom.hudToggle.setAttribute("aria-expanded", String(!this.dom.hudPanel.classList.contains("hidden")));
       });
+    }
+
+    if (this.dom.helpToggle && this.dom.helpDialog && this.dom.helpClose) {
+      const closeHelp = () => {
+        this.dom.helpDialog.classList.add("hidden");
+        document.getElementById("ui-layer")?.removeAttribute("inert");
+        document.removeEventListener("keydown", trapHelpFocus);
+        this.dom.helpToggle.focus();
+      };
+      const trapHelpFocus = (event) => {
+        if (event.key === "Escape") { event.preventDefault(); closeHelp(); return; }
+        if (event.key !== "Tab") return;
+        const focusable = [...this.dom.helpDialog.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')];
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      };
+      this.dom.helpToggle.addEventListener("click", () => {
+        this.dom.helpDialog.classList.remove("hidden");
+        document.getElementById("ui-layer")?.setAttribute("inert", "");
+        document.addEventListener("keydown", trapHelpFocus);
+        this.dom.helpClose.focus();
+      });
+      this.dom.helpClose.addEventListener("click", closeHelp);
+      this.dom.helpDialog.addEventListener("click", (event) => { if (event.target === this.dom.helpDialog) closeHelp(); });
     }
 
     if (this.dom.opacitySlider && this.dom.opacityValDisplay) {
@@ -160,13 +206,14 @@ class UIManager {
     this.dom.viewBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
         this.dom.viewBtns.forEach((b) =>
-          b.classList.remove(
+          (b.setAttribute("aria-pressed", "false"), b.classList.remove(
             "active",
             "bg-cyan-900/40",
             "border-cyan-500/50",
             "text-cyan-300"
-          )
+          ))
         );
+        e.currentTarget.setAttribute("aria-pressed", "true");
         e.currentTarget.classList.add(
           "active",
           "bg-cyan-900/40",
@@ -177,6 +224,7 @@ class UIManager {
           e.currentTarget.getAttribute("data-mode"),
           10
         );
+        if (this.dom.flightStatus) this.dom.flightStatus.textContent = `${e.currentTarget.textContent} sensor view selected`;
 
         // Dispatch custom event so the Jet can update materials
         window.dispatchEvent(
@@ -240,6 +288,8 @@ class UIManager {
       this.dom.hudGear.className =
         "font-mono text-sm font-bold text-red-500 drop-shadow-[0_0_4px_rgba(239,68,68,0.8)] transition-colors duration-300";
     }
+    const gearText = gearDown ? "Landing gear down" : "Landing gear up";
+    if (this.dom.flightStatus && this.dom.flightStatus.textContent !== gearText) this.dom.flightStatus.textContent = gearText;
   }
   updateVelocityVector(jetBody) {
     if (!this.dom.velocityVectorEl) return;
