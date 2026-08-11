@@ -69,12 +69,20 @@ export class WindVisualization {
     );
     jetGroup.add(this.windParticles);
   }
-  update(velocityMag, simulatedMach, userOpacity, viewMode) {
+  update(
+    velocityMag,
+    simulatedMach,
+    userOpacity,
+    viewMode,
+    deltaTime = 1 / 60,
+  ) {
     this.windParticles.material.opacity =
       Math.min(1.0, velocityMag * 0.02) * userOpacity;
     if (velocityMag < 5) return;
 
-    const windFlowSpeed = velocityMag * 0.03;
+    const frameScale = deltaTime * 60;
+    const windFlowSpeed = velocityMag * 0.03 * frameScale;
+    const recoveryAlpha = 1 - Math.pow(1 - 0.015, frameScale);
     const tailLength = this.baseTailLength + velocityMag * 0.05;
     const colors = this.lineGeometry.attributes.color.array;
 
@@ -132,11 +140,11 @@ export class WindVisualization {
         pz += nz * pushFactor * 0.15;
         stress = Math.min(1.0, pushFactor * 1.5);
       } else {
-        px += (this.originalX[i] - px) * 0.015;
-        py += (this.originalY[i] - py) * 0.015;
+        px += (this.originalX[i] - px) * recoveryAlpha;
+        py += (this.originalY[i] - py) * recoveryAlpha;
         if (pz < -6.0 && pz > -25.0) {
-          px += Math.sin(pz * 0.5 + i) * 0.03 * simulatedMach;
-          py += Math.cos(pz * 0.4 - i) * 0.03 * simulatedMach;
+          px += Math.sin(pz * 0.5 + i) * 0.03 * simulatedMach * frameScale;
+          py += Math.cos(pz * 0.4 - i) * 0.03 * simulatedMach * frameScale;
         }
       }
 

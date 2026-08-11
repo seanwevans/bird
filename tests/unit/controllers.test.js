@@ -6,6 +6,7 @@ describe("controllers", () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <button id="hud-toggle"></button><span id="hud-chevron"></span>
+      <button id="pause-toggle" aria-pressed="false">Pause</button>
       <div id="hud-panel" class="hidden"></div>
       <input id="opacity-slider" value="0.025">
       <span id="opacity-val"></span>
@@ -32,6 +33,19 @@ describe("controllers", () => {
     expect(input.needReset).toBe(true);
   });
 
+  it("changes keyboard throttle at the same rate for different frame times", () => {
+    const atThirtyFps = new InputController();
+    const atOneTwentyFps = new InputController();
+    atThirtyFps.keys.Control = true;
+    atOneTwentyFps.keys.Control = true;
+
+    for (let frame = 0; frame < 30; frame++) atThirtyFps.update(1 / 30);
+    for (let frame = 0; frame < 120; frame++) atOneTwentyFps.update(1 / 120);
+
+    expect(atThirtyFps.throttle).toBeCloseTo(0.4, 10);
+    expect(atOneTwentyFps.throttle).toBeCloseTo(0.4, 10);
+  });
+
   it("opens the HUD and dispatches sensor-mode selection", () => {
     const ui = new HudController();
     const listener = vi.fn();
@@ -43,5 +57,10 @@ describe("controllers", () => {
     document.querySelector('[data-mode="2"]').click();
     expect(ui.currentViewMode).toBe(2);
     expect(listener).toHaveBeenCalledOnce();
+    ui.updatePaused(true);
+    expect(document.querySelector("#pause-toggle").textContent).toBe("Resume");
+    expect(
+      document.querySelector("#pause-toggle").getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 });
