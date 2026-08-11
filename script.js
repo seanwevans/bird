@@ -1,4 +1,12 @@
-class InputController {
+import {
+  calculateFlightForces,
+  clamp,
+  formatFlightData,
+  normalizeKey,
+  resetInputState,
+} from "./core.js";
+
+export class InputController {
   constructor() {
     this.keys = {
       w: false,
@@ -8,7 +16,7 @@ class InputController {
       q: false,
       e: false,
       Shift: false,
-      Control: false
+      Control: false,
     };
     this.throttle = 1.0;
     this.pitch = 0;
@@ -45,7 +53,7 @@ class InputController {
     // Letter keys arrive uppercase while Shift (throttle up) is held, which
     // dropped WASDQE inputs. Lowercase single characters so the letter
     // controls keep working; leave named keys like "Shift"/"Control" intact.
-    return key.length === 1 ? key.toLowerCase() : key;
+    return normalizeKey(key);
   }
   update() {
     this.pitch = 0;
@@ -77,11 +85,7 @@ class InputController {
 
     const rt = gp.buttons[7] ? gp.buttons[7].value : 0;
     const lt = gp.buttons[6] ? gp.buttons[6].value : 0;
-    this.throttle = THREE.MathUtils.clamp(
-      this.throttle + rt * 0.01 - lt * 0.01,
-      0.0,
-      1.0
-    );
+    this.throttle = clamp(this.throttle + rt * 0.01 - lt * 0.01);
 
     if (Math.abs(gp.axes[1]) > dz) this.pitch = -gp.axes[1];
     if (Math.abs(gp.axes[0]) > dz) this.roll = gp.axes[0];
@@ -100,15 +104,15 @@ class InputController {
     const rightStickY = Math.abs(gp.axes[3]) > dz ? gp.axes[3] : 0;
 
     this.orbitYaw -= rightStickX * this.ORBIT_SENSITIVITY;
-    this.orbitPitch = THREE.MathUtils.clamp(
+    this.orbitPitch = clamp(
       this.orbitPitch - rightStickY * this.ORBIT_SENSITIVITY,
       -this.ORBIT_PITCH_LIMIT,
-      this.ORBIT_PITCH_LIMIT
+      this.ORBIT_PITCH_LIMIT,
     );
   }
 }
 
-class UIManager {
+export class UIManager {
   constructor() {
     this.dom = {
       machDisplay: document.getElementById("mach-display"),
@@ -128,7 +132,7 @@ class UIManager {
       hudPanel: document.getElementById("hud-panel"),
       hudChevron: document.getElementById("hud-chevron"),
       controllerStatus: document.getElementById("controller-status"),
-      hudGear: document.getElementById("hud-gear-on-screen")
+      hudGear: document.getElementById("hud-gear-on-screen"),
     };
 
     // Initialize from the slider so the wind matches the value shown in the
@@ -152,7 +156,7 @@ class UIManager {
       this.dom.opacitySlider.addEventListener("input", (e) => {
         this.userWindOpacity = parseFloat(e.target.value);
         this.dom.opacityValDisplay.innerText = `${Math.round(
-          this.userWindOpacity * 100
+          this.userWindOpacity * 100,
         )}%`;
       });
     }
@@ -164,32 +168,32 @@ class UIManager {
             "active",
             "bg-cyan-900/40",
             "border-cyan-500/50",
-            "text-cyan-300"
-          )
+            "text-cyan-300",
+          ),
         );
         e.currentTarget.classList.add(
           "active",
           "bg-cyan-900/40",
           "border-cyan-500/50",
-          "text-cyan-300"
+          "text-cyan-300",
         );
         this.currentViewMode = parseInt(
           e.currentTarget.getAttribute("data-mode"),
-          10
+          10,
         );
 
         // Dispatch custom event so the Jet can update materials
         window.dispatchEvent(
-          new CustomEvent("viewModeChanged", { detail: this.currentViewMode })
+          new CustomEvent("viewModeChanged", { detail: this.currentViewMode }),
         );
       });
     });
 
     window.addEventListener("gamepadconnected", () =>
-      this.updateControllerStatus(true)
+      this.updateControllerStatus(true),
     );
     window.addEventListener("gamepaddisconnected", () =>
-      this.updateControllerStatus(false)
+      this.updateControllerStatus(false),
     );
   }
   updateControllerStatus(connected) {
@@ -198,36 +202,36 @@ class UIManager {
       this.dom.controllerStatus.innerText = "Gamepad: Online";
       this.dom.controllerStatus.classList.replace(
         "text-slate-400",
-        "text-green-400"
+        "text-green-400",
       );
       this.dom.controllerStatus.classList.add("border-green-500/50");
     } else {
       this.dom.controllerStatus.innerText = "Gamepad: Disconnected";
       this.dom.controllerStatus.classList.replace(
         "text-green-400",
-        "text-slate-400"
+        "text-slate-400",
       );
       this.dom.controllerStatus.classList.remove("border-green-500/50");
     }
   }
   updateFlightData(speed, mach, altitude, vsi, throttle) {
-    const vsiStr = vsi > 0 ? `+${Math.round(vsi)}` : `${Math.round(vsi)}`;
-    const altRounded = Math.max(0, Math.round(altitude * 3));
-    const speedRounded = Math.round(speed * 2);
+    const formatted = formatFlightData(speed, mach, altitude, vsi, throttle);
 
-    if (this.dom.machDisplay)
-      this.dom.machDisplay.innerText = `Mach ${mach.toFixed(2)}`;
+    if (this.dom.machDisplay) this.dom.machDisplay.innerText = formatted.mach;
     if (this.dom.speedDisplay)
-      this.dom.speedDisplay.innerText = `${speedRounded} kts`;
-    if (this.dom.altDisplay) this.dom.altDisplay.innerText = `${altRounded} ft`;
-    if (this.dom.vsiDisplay) this.dom.vsiDisplay.innerText = `${vsiStr} ft/m`;
+      this.dom.speedDisplay.innerText = formatted.speed;
+    if (this.dom.altDisplay) this.dom.altDisplay.innerText = formatted.altitude;
+    if (this.dom.vsiDisplay)
+      this.dom.vsiDisplay.innerText = formatted.verticalSpeed;
     if (this.dom.throttleDisplay)
-      this.dom.throttleDisplay.innerText = `${Math.round(throttle * 100)}%`;
+      this.dom.throttleDisplay.innerText = formatted.throttle;
 
     if (this.dom.hudSpeedOnScreen)
-      this.dom.hudSpeedOnScreen.innerText = speedRounded;
-    if (this.dom.hudAltOnScreen) this.dom.hudAltOnScreen.innerText = altRounded;
-    if (this.dom.hudVsiOnScreen) this.dom.hudVsiOnScreen.innerText = vsiStr;
+      this.dom.hudSpeedOnScreen.innerText = formatted.speedValue;
+    if (this.dom.hudAltOnScreen)
+      this.dom.hudAltOnScreen.innerText = formatted.altitudeValue;
+    if (this.dom.hudVsiOnScreen)
+      this.dom.hudVsiOnScreen.innerText = formatted.verticalSpeedValue;
   }
   updateGear(gearDown) {
     if (!this.dom.hudGear) return;
@@ -262,13 +266,13 @@ class UIManager {
   updateHorizon(jetGroup) {
     if (!this.dom.horizonTransform) return;
     const jetFwd = new THREE.Vector3(0, 0, 1).applyQuaternion(
-      jetGroup.quaternion
+      jetGroup.quaternion,
     );
     const jetRight = new THREE.Vector3(1, 0, 0).applyQuaternion(
-      jetGroup.quaternion
+      jetGroup.quaternion,
     );
     const jetUp = new THREE.Vector3(0, 1, 0).applyQuaternion(
-      jetGroup.quaternion
+      jetGroup.quaternion,
     );
 
     const pitchAngle = Math.asin(jetFwd.y);
@@ -287,7 +291,7 @@ class ShaderUtils {
         `varying vec3 vWorldNormalHeat;\n` + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        `#include <project_vertex>\nvWorldNormalHeat = normalize((modelMatrix * vec4(normal, 0.0)).xyz);`
+        `#include <project_vertex>\nvWorldNormalHeat = normalize((modelMatrix * vec4(normal, 0.0)).xyz);`,
       );
 
       shader.fragmentShader =
@@ -315,7 +319,7 @@ class ShaderUtils {
          float mappedTempHeat = (dotProdHeat + 1.0) * 0.5;
          mappedTempHeat = pow(mappedTempHeat, 1.5);
          float finalHeatVal = (mappedTempHeat * 0.8 + 0.1) * (0.3 + windSpeed * 0.8);
-         diffuseColor.rgb = getThermalColor(finalHeatVal);`
+         diffuseColor.rgb = getThermalColor(finalHeatVal);`,
       );
     };
   }
@@ -345,11 +349,11 @@ class Environment {
   buildGround() {
     const groundMat = new THREE.MeshStandardMaterial({
       color: 0x3b7a57,
-      roughness: 0.9
+      roughness: 0.9,
     });
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(20000, 20000),
-      groundMat
+      groundMat,
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -2;
@@ -357,12 +361,12 @@ class Environment {
 
     const groundBody = new CANNON.Body({
       mass: 0,
-      material: this.physicsMaterial
+      material: this.physicsMaterial,
     });
     groundBody.addShape(new CANNON.Plane());
     groundBody.quaternion.setFromAxisAngle(
       new CANNON.Vec3(1, 0, 0),
-      -Math.PI / 2
+      -Math.PI / 2,
     );
     groundBody.position.set(0, -2, 0);
     groundBody.isGround = true;
@@ -378,7 +382,7 @@ class Environment {
     const blockGeo = new THREE.BoxGeometry(20, height, 20);
     const blockMat = new THREE.MeshStandardMaterial({
       color: 0xdddddd,
-      roughness: 0.8
+      roughness: 0.8,
     });
     const blockShape = new CANNON.Box(new CANNON.Vec3(10, height / 2, 10));
 
@@ -393,7 +397,7 @@ class Environment {
 
       const blockBody = new CANNON.Body({
         mass: 0,
-        material: this.physicsMaterial
+        material: this.physicsMaterial,
       });
       blockBody.addShape(blockShape);
       blockBody.position.set(x, y, z);
@@ -403,7 +407,7 @@ class Environment {
   }
 }
 
-class Jet {
+export class Jet {
   constructor(scene, physicsWorld, physicsMaterial, onCrashCallback) {
     this.scene = scene;
     this.world = physicsWorld;
@@ -430,12 +434,12 @@ class Jet {
     this.fuselageMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 0.4,
-      metalness: 0.3
+      metalness: 0.3,
     });
     this.cockpitMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 0.1,
-      metalness: 0.8
+      metalness: 0.8,
     });
 
     ShaderUtils.applyThermalShader(this.fuselageMat, this.heatUniforms);
@@ -443,14 +447,14 @@ class Jet {
 
     const fuselage = new THREE.Mesh(
       new THREE.CylinderGeometry(1.2, 1.2, 10, 32),
-      this.fuselageMat
+      this.fuselageMat,
     );
     fuselage.rotation.x = Math.PI / 2;
     this.jetGroup.add(fuselage);
 
     const nose = new THREE.Mesh(
       new THREE.ConeGeometry(1.2, 5, 32),
-      this.fuselageMat
+      this.fuselageMat,
     );
     nose.rotation.x = Math.PI / 2;
     nose.position.z = 7.5;
@@ -458,7 +462,7 @@ class Jet {
 
     const cockpit = new THREE.Mesh(
       new THREE.SphereGeometry(0.9, 32, 16),
-      this.cockpitMat
+      this.cockpitMat,
     );
     cockpit.scale.set(1, 0.6, 3.0);
     cockpit.position.set(0, 1.2, 3);
@@ -466,7 +470,7 @@ class Jet {
 
     const rightWing = new THREE.Mesh(
       new THREE.BoxGeometry(8, 0.2, 4),
-      this.fuselageMat
+      this.fuselageMat,
     );
     rightWing.position.set(4, 0, -1);
     rightWing.rotation.y = Math.PI / 6;
@@ -474,7 +478,7 @@ class Jet {
 
     const leftWing = new THREE.Mesh(
       new THREE.BoxGeometry(8, 0.2, 4),
-      this.fuselageMat
+      this.fuselageMat,
     );
     leftWing.position.set(-4, 0, -1);
     leftWing.rotation.y = -Math.PI / 6;
@@ -485,7 +489,7 @@ class Jet {
     this.rightElevon.position.set(1.5, 0, -4.5);
     const rightTail = new THREE.Mesh(
       new THREE.BoxGeometry(4, 0.1, 2),
-      this.fuselageMat
+      this.fuselageMat,
     );
     rightTail.position.set(1.5, 0, 0);
     rightTail.rotation.y = Math.PI / 8;
@@ -496,7 +500,7 @@ class Jet {
     this.leftElevon.position.set(-1.5, 0, -4.5);
     const leftTail = new THREE.Mesh(
       new THREE.BoxGeometry(4, 0.1, 2),
-      this.fuselageMat
+      this.fuselageMat,
     );
     leftTail.position.set(-1.5, 0, 0);
     leftTail.rotation.y = -Math.PI / 8;
@@ -507,7 +511,7 @@ class Jet {
     this.rudderGroup.position.set(0, 1.2, -4.5);
     const vertTail = new THREE.Mesh(
       new THREE.BoxGeometry(0.3, 3.5, 2.5),
-      this.fuselageMat
+      this.fuselageMat,
     );
     vertTail.position.set(0, 1.5, 0);
     vertTail.rotation.x = -Math.PI / 8;
@@ -518,12 +522,12 @@ class Jet {
     const gearMat = new THREE.MeshStandardMaterial({
       color: 0x444444,
       roughness: 0.8,
-      metalness: 0.5
+      metalness: 0.5,
     });
     const tireMat = new THREE.MeshStandardMaterial({
       color: 0x111111,
       roughness: 0.9,
-      metalness: 0.1
+      metalness: 0.1,
     });
 
     this.noseGearPivot = this.createGearPivot(0, -1.0, 6, gearMat, tireMat);
@@ -533,7 +537,7 @@ class Jet {
     this.jetGroup.add(
       this.noseGearPivot,
       this.leftGearPivot,
-      this.rightGearPivot
+      this.rightGearPivot,
     );
     this.scene.add(this.jetGroup);
   }
@@ -542,12 +546,12 @@ class Jet {
     pivot.position.set(x, y, z);
     const strut = new THREE.Mesh(
       new THREE.CylinderGeometry(0.1, 0.1, 0.4),
-      gearMat
+      gearMat,
     );
     strut.position.set(0, -0.2, 0);
     const wheel = new THREE.Mesh(
       new THREE.CylinderGeometry(0.2, 0.2, 0.15, 16),
-      tireMat
+      tireMat,
     );
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(0, -0.4, 0);
@@ -561,7 +565,7 @@ class Jet {
       velocity: new CANNON.Vec3(0, 0, 150),
       material: physicsMaterial,
       linearDamping: 0.4,
-      angularDamping: 0.8
+      angularDamping: 0.8,
     });
     this.jetBody.addShape(new CANNON.Box(new CANNON.Vec3(2, 1.6, 5)));
     this.world.addBody(this.jetBody);
@@ -594,30 +598,29 @@ class Jet {
     this.jetBody.quaternion.vmult(upVec, upVec);
 
     const speed = this.jetBody.velocity.length();
-    const maxThrust = 4500;
+    const forces = calculateFlightForces(speed, input.throttle, input);
 
-    this.jetBody.force.x += forwardVec.x * maxThrust * input.throttle;
-    this.jetBody.force.y += forwardVec.y * maxThrust * input.throttle;
-    this.jetBody.force.z += forwardVec.z * maxThrust * input.throttle;
+    this.jetBody.force.x += forwardVec.x * forces.thrust;
+    this.jetBody.force.y += forwardVec.y * forces.thrust;
+    this.jetBody.force.z += forwardVec.z * forces.thrust;
 
-    const liftForce = speed * speed * 0.05;
+    const liftForce = forces.lift;
     this.jetBody.force.x += upVec.x * liftForce;
     this.jetBody.force.y += upVec.y * liftForce;
     this.jetBody.force.z += upVec.z * liftForce;
 
-    const controlAuthority = Math.min(1.0, speed / 40.0);
-    const pitchTorque = input.pitch * 1000 * controlAuthority;
-    const rollTorque = input.roll * 1800 * controlAuthority;
-    const yawTorque = input.yaw * 500 * controlAuthority;
-
-    const localTorque = new CANNON.Vec3(pitchTorque, yawTorque, rollTorque);
+    const localTorque = new CANNON.Vec3(
+      forces.pitchTorque,
+      forces.yawTorque,
+      forces.rollTorque,
+    );
     this.jetBody.quaternion.vmult(localTorque, localTorque);
 
     this.jetBody.torque.x += localTorque.x;
     this.jetBody.torque.y += localTorque.y;
     this.jetBody.torque.z += localTorque.z;
 
-    this.simulatedMach = speed / 150;
+    this.simulatedMach = forces.mach;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
 
     this.updateAnimations(input);
@@ -704,11 +707,11 @@ class Wind {
 
     this.lineGeometry.setAttribute(
       "position",
-      new THREE.BufferAttribute(this.particlePositions, 3)
+      new THREE.BufferAttribute(this.particlePositions, 3),
     );
     this.lineGeometry.setAttribute(
       "color",
-      new THREE.BufferAttribute(particleColors, 3)
+      new THREE.BufferAttribute(particleColors, 3),
     );
 
     const material = new THREE.LineBasicMaterial({
@@ -716,7 +719,7 @@ class Wind {
       transparent: true,
       opacity: 0.6,
       blending: THREE.AdditiveBlending,
-      depthWrite: false
+      depthWrite: false,
     });
 
     this.windParticles = new THREE.LineSegments(this.lineGeometry, material);
@@ -757,9 +760,7 @@ class Wind {
       const minV = Math.min(fV, wV, tV);
 
       if (minV < 1.8) {
-        let nx = 0,
-          ny = 0,
-          nz = 0;
+        let nx, ny, nz;
         if (minV === fV) {
           nx = (2 * px) / (2.8 * 2.8);
           ny = (2 * py) / (2.8 * 2.8);
@@ -852,7 +853,7 @@ class Wind {
   }
 }
 
-class FlightSim {
+export class FlightSim {
   constructor() {
     this.setupGraphics();
     this.setupPhysics();
@@ -862,7 +863,7 @@ class FlightSim {
     this.environment = new Environment(
       this.scene,
       this.world,
-      this.physicsMaterial
+      this.physicsMaterial,
     );
 
     this.jet = new Jet(
@@ -871,7 +872,7 @@ class FlightSim {
       this.physicsContactMaterial.materials[0],
       () => {
         this.input.needReset = true;
-      }
+      },
     );
 
     this.wind = new Wind(this.jet.jetGroup);
@@ -885,7 +886,7 @@ class FlightSim {
       60,
       window.innerWidth / window.innerHeight,
       0.1,
-      5000
+      5000,
     );
     this.camera.position.set(0, 158, -25);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -904,7 +905,7 @@ class FlightSim {
     this.physicsContactMaterial = new CANNON.ContactMaterial(
       this.physicsMaterial,
       this.physicsMaterial,
-      { friction: 0.05, restitution: 0.1 }
+      { friction: 0.05, restitution: 0.1 },
     );
     this.world.addContactMaterial(this.physicsContactMaterial);
   }
@@ -912,11 +913,11 @@ class FlightSim {
     const baseOffset = new THREE.Vector3(0, 8, -25); // HEIGHT, DISTANCE
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
-      this.input.orbitYaw
+      this.input.orbitYaw,
     );
     const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(1, 0, 0),
-      this.input.orbitPitch
+      this.input.orbitPitch,
     );
 
     const orbitOffset = baseOffset
@@ -932,7 +933,7 @@ class FlightSim {
       .applyQuaternion(this.jet.jetGroup.quaternion)
       .add(this.jet.jetGroup.position);
     const worldUpFromJet = new THREE.Vector3(0, 1, 0).applyQuaternion(
-      this.jet.jetGroup.quaternion
+      this.jet.jetGroup.quaternion,
     );
 
     this.camera.up.lerp(worldUpFromJet, 0.1);
@@ -950,11 +951,7 @@ class FlightSim {
 
     if (this.input.needReset) {
       this.jet.reset();
-      this.input.needReset = false;
-      this.input.gearDown = false;
-      this.input.orbitYaw = 0;
-      this.input.orbitPitch = 0;
-      this.input.throttle = 0.5;
+      resetInputState(this.input);
     }
 
     this.jet.applyFlightPhysics(this.input);
@@ -965,7 +962,7 @@ class FlightSim {
       speed,
       this.jet.simulatedMach,
       this.ui.userWindOpacity,
-      this.ui.currentViewMode
+      this.ui.currentViewMode,
     );
 
     this.ui.updateGear(this.input.gearDown);
@@ -974,7 +971,7 @@ class FlightSim {
       this.jet.simulatedMach,
       this.jet.jetBody.position.y,
       this.jet.jetBody.velocity.y * 180,
-      this.input.throttle
+      this.input.throttle,
     );
     this.ui.updateVelocityVector(this.jet.jetBody);
     this.ui.updateHorizon(this.jet.jetGroup);
@@ -983,4 +980,6 @@ class FlightSim {
   }
 }
 
-new FlightSim().animate();
+if (typeof THREE !== "undefined" && typeof CANNON !== "undefined") {
+  new FlightSim().animate();
+}

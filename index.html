@@ -1,237 +1,266 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aerodynamics Flight Simulator</title>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aerodynamics Flight Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="style.css">
-</head>
+  <body>
+    <div id="canvas-container"></div>
 
-<body>
+    <div
+      id="hud-center"
+      class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 pointer-events-none z-10 overflow-hidden rounded-full border border-cyan-500/10"
+    >
+      <div
+        class="absolute top-1/2 left-1/2 w-6 h-6 border-2 border-cyan-400 rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-[0_0_8px_rgba(0,255,255,0.6)]"
+      ></div>
 
-  <div id="canvas-container"></div>
+      <div
+        class="absolute top-1/2 left-1/2 w-1 h-1 bg-cyan-400 rounded-full transform -translate-x-1/2 -translate-y-1/2"
+      ></div>
 
-  <div id="hud-center" class="absolute top-1/2 left-1/2
-                              transform -translate-x-1/2 -translate-y-1/2
-                              w-96 h-96 pointer-events-none z-10
-                              overflow-hidden rounded-full
-                              border border-cyan-500/10">
+      <div
+        class="absolute top-1/2 left-[15%] right-[15%] h-px bg-cyan-400/60 transform -translate-y-1/2"
+      ></div>
 
-    <div class="absolute top-1/2 left-1/2
-                w-6 h-6
-                border-2 border-cyan-400
-                rounded-full
-                transform -translate-x-1/2 -translate-y-1/2
-                shadow-[0_0_8px_rgba(0,255,255,0.6)]"></div>
+      <div
+        id="velocity-vector"
+        class="absolute top-1/2 left-1/2 w-8 h-8 transform -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 ease-out"
+      >
+        <div
+          class="absolute inset-0 border-2 border-cyan-300 rounded-full shadow-[0_0_10px_rgba(34,211,238,1)]"
+        ></div>
 
-    <div class="absolute top-1/2 left-1/2
-                w-1 h-1
-                bg-cyan-400 rounded-full
-                transform -translate-x-1/2 -translate-y-1/2"></div>
+        <div class="fpm-wing w-3 h-0.5 -left-3 top-1/2 -translate-y-1/2"></div>
 
-    <div class="absolute top-1/2 left-[15%] right-[15%]
-                h-px bg-cyan-400/60
-                transform -translate-y-1/2"></div>
+        <div class="fpm-wing w-3 h-0.5 -right-3 top-1/2 -translate-y-1/2"></div>
 
-    <div id="velocity-vector" class="absolute top-1/2 left-1/2
-                w-8 h-8
-                transform -translate-x-1/2 -translate-y-1/2
-                transition-transform duration-75 ease-out">
-
-      <div class="absolute inset-0
-                  border-2 border-cyan-300 rounded-full
-                  shadow-[0_0_10px_rgba(34,211,238,1)]"></div>
-
-      <div class="fpm-wing w-3 h-0.5
-                  -left-3 top-1/2 -translate-y-1/2"></div>
-
-      <div class="fpm-wing w-3 h-0.5
-                  -right-3 top-1/2 -translate-y-1/2"></div>
-
-      <div class="fpm-wing w-0.5 h-2
-                  left-1/2 -top-2 -translate-x-1/2"></div>
-    </div>
-
-    <div class="absolute top-1/2 left-6
-                transform -translate-y-1/2
-                border-r-2 border-cyan-400/50
-                pr-3 text-right">
-
-      <div class="text-[10px] text-cyan-400/80
-                  tracking-widest font-bold">KTS</div>
-
-      <div id="hud-speed-on-screen" class="font-mono text-2xl
-                                           font-bold text-cyan-300
-                                           drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]">0</div>
-
-    </div>
-
-    <div class="absolute top-[65%] left-6
-                transform -translate-y-1/2
-                border-r-2 border-cyan-400/50
-                pr-3 text-right">
-
-      <div id="hud-gear-on-screen" class="font-mono text-sm
-                                          font-bold text-red-500
-                                          drop-shadow-[0_0_4px_rgba(239,68,68,0.8)]
-                                          transition-colors duration-300">GEAR UP</div>
-
-    </div>
-
-    <div class="absolute top-1/2 right-6
-                transform -translate-y-1/2
-                border-l-2 border-cyan-400/50 pl-3">
-
-      <div class="text-[10px] text-cyan-400/80
-                  tracking-widest font-bold">ALT</div>
-
-      <div id="hud-alt-on-screen" class="font-mono text-2xl
-                                         font-bold text-cyan-300
-                                         drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]">0</div>
-
-      <div class="text-[10px] text-cyan-400/80
-                  tracking-widest font-bold mt-4">VSI</div>
-
-      <div id="hud-vsi-on-screen" class="font-mono text-lg
-                                         font-bold text-cyan-300
-                                         drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]">0</div>
-
-    </div>
-
-    <div id="horizon-transform" class="absolute top-1/2 left-1/2
-                                       w-[200%] h-[200%] -ml-[100%] -mt-[100%]
-                                       transition-transform duration-75 ease-linear">
-
-      <div class="absolute top-1/2 left-[20%] right-[20%] h-0.5
-                  bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
-
-      <div class="absolute top-[calc(50%-40px)] left-[35%] right-[35%] h-px
-                  border-b-2 border-dashed border-green-400/60"></div>
-
-      <div class="absolute top-[calc(50%-80px)] left-[40%] right-[40%] h-px
-                  border-b-2 border-dashed border-green-400/60"></div>
-
-      <div class="absolute top-[calc(50%+40px)] left-[35%] right-[35%] h-px
-                  border-b-2 border-dashed border-green-400/60"></div>
-
-      <div class="absolute top-[calc(50%+80px)] left-[40%] right-[40%] h-px
-                  border-b-2 border-dashed border-green-400/60"></div>
-
-    </div>
-
-  </div>
-
-  <div id="ui-layer">
-
-    <div class="flex items-center gap-2 mb-2">
-
-      <button id="hud-toggle" class="bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold py-1.5 px-3 rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md flex items-center gap-2">
-
-        <svg id="hud-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
-        </svg>
-        HUD
-      </button>
-
-      <div id="controller-status" class="bg-slate-800/80 text-[10px] font-bold py-1.5 px-3 rounded border border-slate-500/30 shadow-lg text-slate-400 uppercase tracking-tighter">
-        Gamepad: Disconnected
+        <div class="fpm-wing w-0.5 h-2 left-1/2 -top-2 -translate-x-1/2"></div>
       </div>
 
+      <div
+        class="absolute top-1/2 left-6 transform -translate-y-1/2 border-r-2 border-cyan-400/50 pr-3 text-right"
+      >
+        <div class="text-[10px] text-cyan-400/80 tracking-widest font-bold">
+          KTS
+        </div>
+
+        <div
+          id="hud-speed-on-screen"
+          class="font-mono text-2xl font-bold text-cyan-300 drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]"
+        >
+          0
+        </div>
+      </div>
+
+      <div
+        class="absolute top-[65%] left-6 transform -translate-y-1/2 border-r-2 border-cyan-400/50 pr-3 text-right"
+      >
+        <div
+          id="hud-gear-on-screen"
+          class="font-mono text-sm font-bold text-red-500 drop-shadow-[0_0_4px_rgba(239,68,68,0.8)] transition-colors duration-300"
+        >
+          GEAR UP
+        </div>
+      </div>
+
+      <div
+        class="absolute top-1/2 right-6 transform -translate-y-1/2 border-l-2 border-cyan-400/50 pl-3"
+      >
+        <div class="text-[10px] text-cyan-400/80 tracking-widest font-bold">
+          ALT
+        </div>
+
+        <div
+          id="hud-alt-on-screen"
+          class="font-mono text-2xl font-bold text-cyan-300 drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]"
+        >
+          0
+        </div>
+
+        <div
+          class="text-[10px] text-cyan-400/80 tracking-widest font-bold mt-4"
+        >
+          VSI
+        </div>
+
+        <div
+          id="hud-vsi-on-screen"
+          class="font-mono text-lg font-bold text-cyan-300 drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]"
+        >
+          0
+        </div>
+      </div>
+
+      <div
+        id="horizon-transform"
+        class="absolute top-1/2 left-1/2 w-[200%] h-[200%] -ml-[100%] -mt-[100%] transition-transform duration-75 ease-linear"
+      >
+        <div
+          class="absolute top-1/2 left-[20%] right-[20%] h-0.5 bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"
+        ></div>
+
+        <div
+          class="absolute top-[calc(50%-40px)] left-[35%] right-[35%] h-px border-b-2 border-dashed border-green-400/60"
+        ></div>
+
+        <div
+          class="absolute top-[calc(50%-80px)] left-[40%] right-[40%] h-px border-b-2 border-dashed border-green-400/60"
+        ></div>
+
+        <div
+          class="absolute top-[calc(50%+40px)] left-[35%] right-[35%] h-px border-b-2 border-dashed border-green-400/60"
+        ></div>
+
+        <div
+          class="absolute top-[calc(50%+80px)] left-[40%] right-[40%] h-px border-b-2 border-dashed border-green-400/60"
+        ></div>
+      </div>
     </div>
 
-    <div id="hud-panel" class="hidden">
+    <div id="ui-layer">
+      <div class="flex items-center gap-2 mb-2">
+        <button
+          id="hud-toggle"
+          class="bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold py-1.5 px-3 rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md flex items-center gap-2"
+        >
+          <svg
+            id="hud-chevron"
+            class="w-4 h-4 transform transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 15l7-7 7 7"
+            ></path>
+          </svg>
+          HUD
+        </button>
 
-      <div class="control-panel rounded-xl p-5 shadow-2xl flex flex-col gap-3">
-
-        <div class="flex justify-between items-center border-b border-cyan-900/50 pb-2">
-
-          <h1 class="text-sm font-bold tracking-widest text-cyan-400">AERODYNAMICS HUD</h1>
-
-          <span id="mach-display" class="font-mono text-xs font-semibold bg-cyan-950/80 px-2 py-1 rounded text-cyan-300">Mach 0.00</span>
-
+        <div
+          id="controller-status"
+          class="bg-slate-800/80 text-[10px] font-bold py-1.5 px-3 rounded border border-slate-500/30 shadow-lg text-slate-400 uppercase tracking-tighter"
+        >
+          Gamepad: Disconnected
         </div>
+      </div>
 
-        <div class="space-y-2 font-mono text-sm">
+      <div id="hud-panel" class="hidden">
+        <div
+          class="control-panel rounded-xl p-5 shadow-2xl flex flex-col gap-3"
+        >
+          <div
+            class="flex justify-between items-center border-b border-cyan-900/50 pb-2"
+          >
+            <h1 class="text-sm font-bold tracking-widest text-cyan-400">
+              AERODYNAMICS HUD
+            </h1>
 
-          <div class="flex justify-between text-gray-300">
-
-            <span>ALTITUDE</span>
-
-            <span id="alt-val" class="text-cyan-400">0 ft</span>
-
+            <span
+              id="mach-display"
+              class="font-mono text-xs font-semibold bg-cyan-950/80 px-2 py-1 rounded text-cyan-300"
+              >Mach 0.00</span
+            >
           </div>
 
-          <div class="flex justify-between text-gray-300">
+          <div class="space-y-2 font-mono text-sm">
+            <div class="flex justify-between text-gray-300">
+              <span>ALTITUDE</span>
 
-            <span>VERT SPEED</span>
-
-            <span id="vsi-val" class="text-cyan-400">0 ft/m</span>
-
-          </div>
-
-          <div class="flex justify-between text-gray-300">
-
-            <span>AIRSPEED</span>
-
-            <span id="speed-val" class="text-cyan-400">0 kts</span>
-
-          </div>
-
-          <div class="flex justify-between text-gray-300">
-
-            <span>THROTTLE</span>
-
-            <span id="throttle-val" class="text-cyan-400">0%</span>
-
-          </div>
-
-        </div>
-
-        <div class="pt-2 border-t border-cyan-900/50 mt-1">
-
-          <div class="mb-3">
-
-            <div class="flex justify-between text-xs mb-1 text-gray-300 font-sans">
-
-              <span>Wind Opacity</span>
-
-              <span id="opacity-val">2.5%</span>
-
+              <span id="alt-val" class="text-cyan-400">0 ft</span>
             </div>
 
-            <input type="range" id="opacity-slider" min="0.0" max="1.0" step="0.005" value="0.025" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-gray-300">
+              <span>VERT SPEED</span>
 
+              <span id="vsi-val" class="text-cyan-400">0 ft/m</span>
+            </div>
+
+            <div class="flex justify-between text-gray-300">
+              <span>AIRSPEED</span>
+
+              <span id="speed-val" class="text-cyan-400">0 kts</span>
+            </div>
+
+            <div class="flex justify-between text-gray-300">
+              <span>THROTTLE</span>
+
+              <span id="throttle-val" class="text-cyan-400">0%</span>
+            </div>
           </div>
 
-          <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Sensor View</div>
+          <div class="pt-2 border-t border-cyan-900/50 mt-1">
+            <div class="mb-3">
+              <div
+                class="flex justify-between text-xs mb-1 text-gray-300 font-sans"
+              >
+                <span>Wind Opacity</span>
 
-          <div class="grid grid-cols-2 gap-2">
+                <span id="opacity-val">2.5%</span>
+              </div>
 
-            <button class="view-btn active bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="0">Thermal</button>
+              <input
+                type="range"
+                id="opacity-slider"
+                min="0.0"
+                max="1.0"
+                step="0.005"
+                value="0.025"
+                class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="1">Laminar</button>
+            <div
+              class="text-[10px] text-gray-500 uppercase tracking-widest mb-2"
+            >
+              Sensor View
+            </div>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="2">Velocity</button>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                class="view-btn active bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
+                data-mode="0"
+              >
+                Thermal
+              </button>
 
-            <button class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all" data-mode="3">X-Ray</button>
+              <button
+                class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
+                data-mode="1"
+              >
+                Laminar
+              </button>
 
+              <button
+                class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
+                data-mode="2"
+              >
+                Velocity
+              </button>
+
+              <button
+                class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
+                data-mode="3"
+              >
+                X-Ray
+              </button>
+            </div>
           </div>
-
         </div>
-
       </div>
-
     </div>
 
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-  <script src="script.js"></script>
-
-</body>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script type="module" src="script.js"></script>
+  </body>
 </html>
