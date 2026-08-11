@@ -1,4 +1,5 @@
 import { calculateFlightForces } from "../physics/AircraftDynamics.js";
+import { AIRCRAFT_CONFIG } from "../physics/AircraftConfig.js";
 import { ShaderUtils } from "./ShaderUtils.js";
 
 export class AircraftModel {
@@ -19,6 +20,7 @@ export class AircraftModel {
     this.jetGroup = new this.THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
     this.simulatedMach = 0;
+    this.flightData = { angleOfAttack: 0, gLoad: 0, stall: false };
 
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
@@ -164,14 +166,34 @@ export class AircraftModel {
   }
   buildPhysics(physicsMaterial) {
     this.jetBody = new this.CANNON.Body({
-      mass: 100,
-      position: new this.CANNON.Vec3(0, 150, 0),
-      velocity: new this.CANNON.Vec3(0, 0, 150),
+      mass: AIRCRAFT_CONFIG.mass,
+      position: new this.CANNON.Vec3(0, AIRCRAFT_CONFIG.initialAltitude, 0),
+      velocity: new this.CANNON.Vec3(0, 0, AIRCRAFT_CONFIG.initialSpeed),
       material: physicsMaterial,
       linearDamping: 0.4,
       angularDamping: 0.8,
     });
-    this.jetBody.addShape(new this.CANNON.Box(new this.CANNON.Vec3(2, 1.6, 5)));
+    // Compound collision body: narrow fuselage, wings, tail and three gear feet.
+    this.jetBody.addShape(
+      new this.CANNON.Box(new this.CANNON.Vec3(1.2, 1.2, 5)),
+    );
+    this.jetBody.addShape(
+      new this.CANNON.Box(new this.CANNON.Vec3(6, 0.15, 2)),
+      new this.CANNON.Vec3(0, 0, -1),
+    );
+    this.jetBody.addShape(
+      new this.CANNON.Box(new this.CANNON.Vec3(3, 0.12, 1)),
+      new this.CANNON.Vec3(0, 0.2, -4.5),
+    );
+    for (const offset of [
+      [0, -1.45, 5],
+      [-2, -1.45, -1],
+      [2, -1.45, -1],
+    ])
+      this.jetBody.addShape(
+        new this.CANNON.Sphere(0.25),
+        new this.CANNON.Vec3(...offset),
+      );
     this.world.addBody(this.jetBody);
 
     this.jetBody.addEventListener("collide", (e) => {
@@ -195,28 +217,29 @@ export class AircraftModel {
   applyFlightPhysics(input) {
     this.currentGearState = input.gearDown; // Keep reference for collisions
 
-    const forwardVec = new this.CANNON.Vec3(0, 0, 1);
-    this.jetBody.quaternion.vmult(forwardVec, forwardVec);
-
-    const upVec = new this.CANNON.Vec3(0, 1, 0);
-    this.jetBody.quaternion.vmult(upVec, upVec);
-
-    const speed = this.jetBody.velocity.length();
-    const forces = calculateFlightForces(speed, input.throttle, input);
-
-    this.jetBody.force.x += forwardVec.x * forces.thrust;
-    this.jetBody.force.y += forwardVec.y * forces.thrust;
-    this.jetBody.force.z += forwardVec.z * forces.thrust;
-
-    const liftForce = forces.lift;
-    this.jetBody.force.x += upVec.x * liftForce;
-    this.jetBody.force.y += upVec.y * liftForce;
-    this.jetBody.force.z += upVec.z * liftForce;
+    const inverse = new this.CANNON.Quaternion();
+    this.jetBody.quaternion.inverse(inverse);
+    const localVelocity = new this.CANNON.Vec3();
+    inverse.vmult(this.jetBody.velocity, localVelocity);
+    const forces = calculateFlightForces(
+      localVelocity,
+      this.jetBody.position.y,
+      input.throttle,
+      input,
+      input.gearDown,
+    );
+    const worldForce = new this.CANNON.Vec3(
+      forces.localForce.x,
+      forces.localForce.y,
+      forces.localForce.z,
+    );
+    this.jetBody.quaternion.vmult(worldForce, worldForce);
+    this.jetBody.force.vadd(worldForce, this.jetBody.force);
 
     const localTorque = new this.CANNON.Vec3(
-      forces.pitchTorque,
-      forces.yawTorque,
-      forces.rollTorque,
+      forces.localTorque.x,
+      forces.localTorque.y,
+      forces.localTorque.z,
     );
     this.jetBody.quaternion.vmult(localTorque, localTorque);
 
@@ -225,6 +248,7 @@ export class AircraftModel {
     this.jetBody.torque.z += localTorque.z;
 
     this.simulatedMach = forces.mach;
+    this.flightData = forces;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
   }
   updateAnimations(input, deltaTime = 1 / 60) {
@@ -256,8 +280,8 @@ export class AircraftModel {
       gearAlpha;
   }
   reset() {
-    this.jetBody.position.set(0, 150, 0);
-    this.jetBody.velocity.set(0, 0, 150);
+    this.jetBody.position.set(0, AIRCRAFT_CONFIG.initialAltitude, 0);
+    this.jetBody.velocity.set(0, 0, AIRCRAFT_CONFIG.initialSpeed);
     this.jetBody.angularVelocity.set(0, 0, 0);
     this.jetBody.quaternion.set(0, 0, 0, 1);
   }

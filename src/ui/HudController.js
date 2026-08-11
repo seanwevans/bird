@@ -17,6 +17,9 @@ export class HudController {
       vsiDisplay: this.document.getElementById("vsi-val"),
       speedDisplay: this.document.getElementById("speed-val"),
       throttleDisplay: this.document.getElementById("throttle-val"),
+      aoaDisplay: this.document.getElementById("aoa-val"),
+      gLoadDisplay: this.document.getElementById("gload-val"),
+      stallDisplay: this.document.getElementById("stall-val"),
       hudSpeedOnScreen: this.document.getElementById("hud-speed-on-screen"),
       hudAltOnScreen: this.document.getElementById("hud-alt-on-screen"),
       hudVsiOnScreen: this.document.getElementById("hud-vsi-on-screen"),
@@ -148,6 +151,19 @@ export class HudController {
       this.dom.hudGear.innerText = "GEAR UP";
       this.dom.hudGear.className =
         "font-mono text-sm font-bold text-red-500 drop-shadow-[0_0_4px_rgba(239,68,68,0.8)] transition-colors duration-300";
+    }
+  }
+  updateAerodynamics({ angleOfAttack, gLoad, stall }) {
+    const degrees = (angleOfAttack * 180) / Math.PI;
+    if (this.dom.aoaDisplay)
+      this.dom.aoaDisplay.innerText = `${degrees.toFixed(1)}°`;
+    if (this.dom.gLoadDisplay)
+      this.dom.gLoadDisplay.innerText = `${gLoad.toFixed(1)} G`;
+    if (this.dom.stallDisplay) {
+      this.dom.stallDisplay.innerText = stall ? "STALL" : "FLYING";
+      this.dom.stallDisplay.className = stall
+        ? "text-red-400 font-bold"
+        : "text-green-400";
     }
   }
   updateVelocityVector(jetBody) {
