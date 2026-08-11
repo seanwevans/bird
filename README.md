@@ -49,3 +49,13 @@ Then open [http://localhost:8000](http://localhost:8000) in a modern browser.
 | B / Circle or Start | Reset the aircraft |
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
+
+## Architecture
+
+The simulator uses native ES modules under `src/`. `FlightSimulator` coordinates input, physics, rendering, and HUD systems whose browser and engine dependencies are supplied by `src/main.js`. Pure aerodynamic calculations, input normalization, unit conversions, and HUD formatting do not depend on WebGL or the DOM.
+
+Run the Node unit and integration tests with:
+
+```bash
+npm test
+```
