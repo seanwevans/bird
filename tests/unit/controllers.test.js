@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InputController, UIManager } from "../../script.js";
+import { InputController } from "../../src/input/InputController.js";
+import { HudController } from "../../src/ui/HudController.js";
 
 describe("controllers", () => {
   beforeEach(() => {
@@ -32,7 +33,7 @@ describe("controllers", () => {
   });
 
   it("opens the HUD and dispatches sensor-mode selection", () => {
-    const ui = new UIManager();
+    const ui = new HudController();
     const listener = vi.fn();
     window.addEventListener("viewModeChanged", listener, { once: true });
     document.querySelector("#hud-toggle").click();
