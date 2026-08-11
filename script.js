@@ -128,7 +128,10 @@ class UIManager {
       hudPanel: document.getElementById("hud-panel"),
       hudChevron: document.getElementById("hud-chevron"),
       controllerStatus: document.getElementById("controller-status"),
-      hudGear: document.getElementById("hud-gear-on-screen")
+      hudGear: document.getElementById("hud-gear-on-screen"),
+      aoaDisplay: document.getElementById("aoa-val"),
+      gLoadDisplay: document.getElementById("g-load-val"),
+      stallDisplay: document.getElementById("stall-val")
     };
 
     // Initialize from the slider so the wind matches the value shown in the
@@ -210,10 +213,13 @@ class UIManager {
       this.dom.controllerStatus.classList.remove("border-green-500/50");
     }
   }
-  updateFlightData(speed, mach, altitude, vsi, throttle) {
-    const vsiStr = vsi > 0 ? `+${Math.round(vsi)}` : `${Math.round(vsi)}`;
-    const altRounded = Math.max(0, Math.round(altitude * 3));
-    const speedRounded = Math.round(speed * 2);
+  updateFlightData(speed, mach, altitude, verticalSpeed, throttle, flightData) {
+    const verticalFeetPerMinute = verticalSpeed * 196.8504;
+    const vsiStr = verticalFeetPerMinute > 0
+      ? `+${Math.round(verticalFeetPerMinute)}`
+      : `${Math.round(verticalFeetPerMinute)}`;
+    const altRounded = Math.max(0, Math.round(altitude * 3.28084));
+    const speedRounded = Math.round(speed * 1.94384);
 
     if (this.dom.machDisplay)
       this.dom.machDisplay.innerText = `Mach ${mach.toFixed(2)}`;
@@ -223,6 +229,16 @@ class UIManager {
     if (this.dom.vsiDisplay) this.dom.vsiDisplay.innerText = `${vsiStr} ft/m`;
     if (this.dom.throttleDisplay)
       this.dom.throttleDisplay.innerText = `${Math.round(throttle * 100)}%`;
+    if (this.dom.aoaDisplay)
+      this.dom.aoaDisplay.innerText = `${flightData.angleOfAttackDeg.toFixed(1)}°`;
+    if (this.dom.gLoadDisplay)
+      this.dom.gLoadDisplay.innerText = `${flightData.gLoad.toFixed(2)} G`;
+    if (this.dom.stallDisplay) {
+      this.dom.stallDisplay.innerText = flightData.stalled ? "STALL" : "NORMAL";
+      this.dom.stallDisplay.className = flightData.stalled
+        ? "text-red-400 font-bold animate-pulse"
+        : "text-green-400 font-bold";
+    }
 
     if (this.dom.hudSpeedOnScreen)
       this.dom.hudSpeedOnScreen.innerText = speedRounded;
@@ -382,10 +398,16 @@ class Environment {
     });
     const blockShape = new CANNON.Box(new CANNON.Vec3(10, height / 2, 10));
 
+    // A local seeded generator keeps collision geometry identical on every run.
+    let seed = 0x1a2b3c4d;
+    const random = () => {
+      seed = (1664525 * seed + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
     for (let i = 0; i < 1000; i++) {
-      const x = (Math.random() - 0.5) * 4000;
+      const x = (random() - 0.5) * 4000;
       const y = 50;
-      const z = (Math.random() - 0.5) * 4000;
+      const z = (random() - 0.5) * 4000;
 
       const block = new THREE.Mesh(blockGeo, blockMat);
       block.position.set(x, y, z);
@@ -411,6 +433,34 @@ class Jet {
 
     this.jetGroup = new THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
+    // SI units throughout: metres, seconds, kilograms, radians and newtons.
+    this.aero = {
+      seaLevelDensity: 1.225,
+      densityScaleHeight: 8500,
+      speedOfSound: 343,
+      wingArea: 18,
+      sideArea: 8,
+      zeroLiftDrag: 0.025,
+      inducedDragFactor: 0.075,
+      gearDragCoefficient: 0.12,
+      sideForceSlope: 1.1,
+      stallAngleDeg: 16,
+      maxThrust: 4500,
+      referencePressure: 3500,
+      liftCurve: [
+        [-45, -0.35], [-25, -0.65], [-16, -1.15], [0, 0],
+        [16, 1.15], [25, 0.65], [45, 0.35]
+      ],
+      dragCurve: [[0, 1], [10, 1.05], [16, 1.2], [25, 1.8], [45, 3.2]]
+    };
+    this.flightData = {
+      angleOfAttackDeg: 0,
+      sideslipDeg: 0,
+      dynamicPressure: 0,
+      airDensity: this.aero.seaLevelDensity,
+      gLoad: 0,
+      stalled: false
+    };
 
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
@@ -563,7 +613,42 @@ class Jet {
       linearDamping: 0.4,
       angularDamping: 0.8
     });
-    this.jetBody.addShape(new CANNON.Box(new CANNON.Vec3(2, 1.6, 5)));
+    this.jetBody.linearDamping = 0;
+
+    // Compound contact body: fuselage, both wings, tail and three gear points.
+    this.jetBody.addShape(new CANNON.Box(new CANNON.Vec3(1.2, 1.2, 5)));
+    const rightWingRotation = new CANNON.Quaternion();
+    rightWingRotation.setFromAxisAngle(
+      new CANNON.Vec3(0, 1, 0),
+      Math.PI / 6
+    );
+    this.jetBody.addShape(
+      new CANNON.Box(new CANNON.Vec3(4, 0.15, 2)),
+      new CANNON.Vec3(4, 0, -1),
+      rightWingRotation
+    );
+    const leftWingRotation = new CANNON.Quaternion();
+    leftWingRotation.setFromAxisAngle(
+      new CANNON.Vec3(0, 1, 0),
+      -Math.PI / 6
+    );
+    this.jetBody.addShape(
+      new CANNON.Box(new CANNON.Vec3(4, 0.15, 2)),
+      new CANNON.Vec3(-4, 0, -1),
+      leftWingRotation
+    );
+    this.jetBody.addShape(
+      new CANNON.Box(new CANNON.Vec3(3, 0.12, 1)),
+      new CANNON.Vec3(0, 0, -4.5)
+    );
+    this.jetBody.addShape(
+      new CANNON.Box(new CANNON.Vec3(0.2, 1.8, 1.2)),
+      new CANNON.Vec3(0, 1.7, -4.5)
+    );
+    const wheelShape = new CANNON.Sphere(0.25);
+    this.jetBody.addShape(wheelShape, new CANNON.Vec3(0, -1.4, 6));
+    this.jetBody.addShape(wheelShape, new CANNON.Vec3(-2, -1.4, -1));
+    this.jetBody.addShape(wheelShape, new CANNON.Vec3(2, -1.4, -1));
     this.world.addBody(this.jetBody);
 
     this.jetBody.addEventListener("collide", (e) => {
@@ -587,25 +672,66 @@ class Jet {
   applyFlightPhysics(input) {
     this.currentGearState = input.gearDown; // Keep reference for collisions
 
-    const forwardVec = new CANNON.Vec3(0, 0, 1);
-    this.jetBody.quaternion.vmult(forwardVec, forwardVec);
+    const inverseRotation = new CANNON.Quaternion();
+    this.jetBody.quaternion.inverse(inverseRotation);
+    const localVelocity = new CANNON.Vec3();
+    inverseRotation.vmult(this.jetBody.velocity, localVelocity);
+    const speed = localVelocity.length();
+    const horizontalSpeed = Math.hypot(localVelocity.x, localVelocity.z);
+    const alpha = Math.atan2(-localVelocity.y, Math.max(0.001, localVelocity.z));
+    const beta = Math.atan2(localVelocity.x, Math.max(0.001, localVelocity.z));
+    const altitude = Math.max(0, this.jetBody.position.y);
+    const density =
+      this.aero.seaLevelDensity *
+      Math.exp(-altitude / this.aero.densityScaleHeight);
+    const dynamicPressure = 0.5 * density * speed * speed;
+    const alphaDeg = THREE.MathUtils.radToDeg(alpha);
+    const liftCoefficient = this.sampleCurve(this.aero.liftCurve, alphaDeg);
+    const dragMultiplier = this.sampleCurve(
+      this.aero.dragCurve,
+      Math.abs(alphaDeg)
+    );
+    const dragCoefficient =
+      this.aero.zeroLiftDrag * dragMultiplier +
+      this.aero.inducedDragFactor * liftCoefficient * liftCoefficient +
+      (input.gearDown ? this.aero.gearDragCoefficient : 0);
 
-    const upVec = new CANNON.Vec3(0, 1, 0);
-    this.jetBody.quaternion.vmult(upVec, upVec);
+    const localForce = new CANNON.Vec3(
+      0,
+      0,
+      this.aero.maxThrust * input.throttle
+    );
+    if (speed > 0.1) {
+      const invSpeed = 1 / speed;
+      const drag = dynamicPressure * this.aero.wingArea * dragCoefficient;
+      localForce.x -= drag * localVelocity.x * invSpeed;
+      localForce.y -= drag * localVelocity.y * invSpeed;
+      localForce.z -= drag * localVelocity.z * invSpeed;
 
-    const speed = this.jetBody.velocity.length();
-    const maxThrust = 4500;
+      const lift = dynamicPressure * this.aero.wingArea * liftCoefficient;
+      const longitudinalSpeed = Math.max(
+        0.001,
+        Math.hypot(localVelocity.y, localVelocity.z)
+      );
+      localForce.y += lift * localVelocity.z / longitudinalSpeed;
+      localForce.z -= lift * localVelocity.y / longitudinalSpeed;
 
-    this.jetBody.force.x += forwardVec.x * maxThrust * input.throttle;
-    this.jetBody.force.y += forwardVec.y * maxThrust * input.throttle;
-    this.jetBody.force.z += forwardVec.z * maxThrust * input.throttle;
+      const sideForce =
+        dynamicPressure * this.aero.sideArea * this.aero.sideForceSlope * beta;
+      const sidePlaneSpeed = Math.max(0.001, horizontalSpeed);
+      localForce.x -= sideForce * localVelocity.z / sidePlaneSpeed;
+      localForce.z += sideForce * localVelocity.x / sidePlaneSpeed;
+    }
 
-    const liftForce = speed * speed * 0.05;
-    this.jetBody.force.x += upVec.x * liftForce;
-    this.jetBody.force.y += upVec.y * liftForce;
-    this.jetBody.force.z += upVec.z * liftForce;
+    const worldForce = new CANNON.Vec3();
+    this.jetBody.quaternion.vmult(localForce, worldForce);
+    this.jetBody.force.vadd(worldForce, this.jetBody.force);
 
-    const controlAuthority = Math.min(1.0, speed / 40.0);
+    const controlAuthority = THREE.MathUtils.clamp(
+      dynamicPressure / this.aero.referencePressure,
+      0,
+      1.25
+    );
     const pitchTorque = input.pitch * 1000 * controlAuthority;
     const rollTorque = input.roll * 1800 * controlAuthority;
     const yawTorque = input.yaw * 500 * controlAuthority;
@@ -617,10 +743,30 @@ class Jet {
     this.jetBody.torque.y += localTorque.y;
     this.jetBody.torque.z += localTorque.z;
 
-    this.simulatedMach = speed / 150;
+    this.flightData = {
+      angleOfAttackDeg: alphaDeg,
+      sideslipDeg: THREE.MathUtils.radToDeg(beta),
+      dynamicPressure,
+      airDensity: density,
+      gLoad: localForce.y / (this.jetBody.mass * 9.80665),
+      stalled: Math.abs(alphaDeg) >= this.aero.stallAngleDeg
+    };
+    this.simulatedMach = speed / this.aero.speedOfSound;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
 
     this.updateAnimations(input);
+  }
+  sampleCurve(points, x) {
+    if (x <= points[0][0]) return points[0][1];
+    for (let i = 1; i < points.length; i++) {
+      if (x <= points[i][0]) {
+        const t =
+          (x - points[i - 1][0]) /
+          (points[i][0] - points[i - 1][0]);
+        return THREE.MathUtils.lerp(points[i - 1][1], points[i][1], t);
+      }
+    }
+    return points[points.length - 1][1];
   }
   updateAnimations(input) {
     this.jetGroup.position.copy(this.jetBody.position);
@@ -653,6 +799,8 @@ class Jet {
     this.jetBody.velocity.set(0, 0, 150);
     this.jetBody.angularVelocity.set(0, 0, 0);
     this.jetBody.quaternion.set(0, 0, 0, 1);
+    this.jetBody.force.set(0, 0, 0);
+    this.jetBody.torque.set(0, 0, 0);
   }
 }
 
@@ -973,8 +1121,9 @@ class FlightSim {
       speed,
       this.jet.simulatedMach,
       this.jet.jetBody.position.y,
-      this.jet.jetBody.velocity.y * 180,
-      this.input.throttle
+      this.jet.jetBody.velocity.y,
+      this.input.throttle,
+      this.jet.flightData
     );
     this.ui.updateVelocityVector(this.jet.jetBody);
     this.ui.updateHorizon(this.jet.jetGroup);
