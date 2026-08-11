@@ -1,3 +1,23 @@
+const FIXED_TIME_STEP = 1 / 60;
+const MAX_FRAME_DELTA = 0.1;
+const MAX_SUB_STEPS = 6;
+
+function clampFrameDelta(deltaTime) {
+  return Math.max(0, Math.min(MAX_FRAME_DELTA, deltaTime));
+}
+
+function frameRateIndependentAlpha(alphaAt60Fps, deltaTime) {
+  return 1 - Math.pow(1 - alphaAt60Fps, deltaTime * 60);
+}
+
+function advancePhysics(world, deltaTime) {
+  const safeDelta = clampFrameDelta(deltaTime);
+  if (safeDelta > 0) {
+    world.step(FIXED_TIME_STEP, safeDelta, MAX_SUB_STEPS);
+  }
+  return safeDelta;
+}
+
 class InputController {
   constructor() {
     this.keys = {
@@ -47,7 +67,7 @@ class InputController {
     // controls keep working; leave named keys like "Shift"/"Control" intact.
     return key.length === 1 ? key.toLowerCase() : key;
   }
-  update() {
+  update(deltaTime) {
     this.pitch = 0;
     this.roll = 0;
     this.yaw = 0;
@@ -55,16 +75,19 @@ class InputController {
     const gp = navigator.getGamepads ? navigator.getGamepads()[0] : null;
 
     if (gp) {
-      this.applyGamepad(gp);
+      this.applyGamepad(gp, deltaTime);
     } else {
-      this.applyKeyboard();
+      this.applyKeyboard(deltaTime);
       this.lastGearBtn = false;
       this.lastResetBtn = false;
     }
   }
-  applyKeyboard() {
-    if (this.keys.Shift) this.throttle = Math.min(1.0, this.throttle + 0.01);
-    if (this.keys.Control) this.throttle = Math.max(0.0, this.throttle - 0.01);
+  applyKeyboard(deltaTime) {
+    const throttleChange = 0.6 * deltaTime;
+    if (this.keys.Shift)
+      this.throttle = Math.min(1.0, this.throttle + throttleChange);
+    if (this.keys.Control)
+      this.throttle = Math.max(0.0, this.throttle - throttleChange);
     if (this.keys.w) this.pitch = -1;
     if (this.keys.s) this.pitch = 1;
     if (this.keys.a) this.roll = 1;
@@ -72,13 +95,13 @@ class InputController {
     if (this.keys.q) this.yaw = 1;
     if (this.keys.e) this.yaw = -1;
   }
-  applyGamepad(gp) {
+  applyGamepad(gp, deltaTime) {
     const dz = this.GAMEPAD_DEADZONE;
 
     const rt = gp.buttons[7] ? gp.buttons[7].value : 0;
     const lt = gp.buttons[6] ? gp.buttons[6].value : 0;
     this.throttle = THREE.MathUtils.clamp(
-      this.throttle + rt * 0.01 - lt * 0.01,
+      this.throttle + (rt - lt) * 0.6 * deltaTime,
       0.0,
       1.0
     );
@@ -99,9 +122,10 @@ class InputController {
     const rightStickX = Math.abs(gp.axes[2]) > dz ? gp.axes[2] : 0;
     const rightStickY = Math.abs(gp.axes[3]) > dz ? gp.axes[3] : 0;
 
-    this.orbitYaw -= rightStickX * this.ORBIT_SENSITIVITY;
+    const orbitScale = deltaTime * 60;
+    this.orbitYaw -= rightStickX * this.ORBIT_SENSITIVITY * orbitScale;
     this.orbitPitch = THREE.MathUtils.clamp(
-      this.orbitPitch - rightStickY * this.ORBIT_SENSITIVITY,
+      this.orbitPitch - rightStickY * this.ORBIT_SENSITIVITY * orbitScale,
       -this.ORBIT_PITCH_LIMIT,
       this.ORBIT_PITCH_LIMIT
     );
@@ -128,7 +152,8 @@ class UIManager {
       hudPanel: document.getElementById("hud-panel"),
       hudChevron: document.getElementById("hud-chevron"),
       controllerStatus: document.getElementById("controller-status"),
-      hudGear: document.getElementById("hud-gear-on-screen")
+      hudGear: document.getElementById("hud-gear-on-screen"),
+      pauseButton: document.getElementById("pause-toggle")
     };
 
     // Initialize from the slider so the wind matches the value shown in the
@@ -209,6 +234,11 @@ class UIManager {
       );
       this.dom.controllerStatus.classList.remove("border-green-500/50");
     }
+  }
+  updatePauseState(paused) {
+    if (!this.dom.pauseButton) return;
+    this.dom.pauseButton.innerText = paused ? "Resume" : "Pause";
+    this.dom.pauseButton.setAttribute("aria-pressed", String(paused));
   }
   updateFlightData(speed, mach, altitude, vsi, throttle) {
     const vsiStr = vsi > 0 ? `+${Math.round(vsi)}` : `${Math.round(vsi)}`;
@@ -619,10 +649,8 @@ class Jet {
 
     this.simulatedMach = speed / 150;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
-
-    this.updateAnimations(input);
   }
-  updateAnimations(input) {
+  updateAnimations(input, deltaTime) {
     this.jetGroup.position.copy(this.jetBody.position);
     this.jetGroup.quaternion.copy(this.jetBody.quaternion);
 
@@ -631,22 +659,24 @@ class Jet {
     const targetLeftElevon = (input.pitch - input.roll) * 0.6;
     const targetRudder = input.yaw * 0.5;
 
+    const surfaceAlpha = frameRateIndependentAlpha(0.2, deltaTime);
+    const gearAlpha = frameRateIndependentAlpha(0.1, deltaTime);
     this.rightElevon.rotation.x +=
-      (targetRightElevon - this.rightElevon.rotation.x) * 0.2;
+      (targetRightElevon - this.rightElevon.rotation.x) * surfaceAlpha;
     this.leftElevon.rotation.x +=
-      (targetLeftElevon - this.leftElevon.rotation.x) * 0.2;
+      (targetLeftElevon - this.leftElevon.rotation.x) * surfaceAlpha;
     this.rudderGroup.rotation.y +=
-      (targetRudder - this.rudderGroup.rotation.y) * 0.2;
+      (targetRudder - this.rudderGroup.rotation.y) * surfaceAlpha;
 
     // Landing Gear
     const targetRot = input.gearDown ? 0 : -Math.PI / 2;
     this.noseGearPivot.rotation.x +=
-      (targetRot - this.noseGearPivot.rotation.x) * 0.1;
+      (targetRot - this.noseGearPivot.rotation.x) * gearAlpha;
     this.leftGearPivot.rotation.z +=
-      (targetRot - this.leftGearPivot.rotation.z) * 0.1;
+      (targetRot - this.leftGearPivot.rotation.z) * gearAlpha;
     this.rightGearPivot.rotation.z +=
       ((input.gearDown ? 0 : Math.PI / 2) - this.rightGearPivot.rotation.z) *
-      0.1;
+      gearAlpha;
   }
   reset() {
     this.jetBody.position.set(0, 150, 0);
@@ -722,12 +752,13 @@ class Wind {
     this.windParticles = new THREE.LineSegments(this.lineGeometry, material);
     jetGroup.add(this.windParticles);
   }
-  update(velocityMag, simulatedMach, userOpacity, viewMode) {
+  update(velocityMag, simulatedMach, userOpacity, viewMode, deltaTime) {
     this.windParticles.material.opacity =
       Math.min(1.0, velocityMag * 0.02) * userOpacity;
     if (velocityMag < 5) return;
 
-    const windFlowSpeed = velocityMag * 0.03;
+    const frameScale = deltaTime * 60;
+    const windFlowSpeed = velocityMag * 0.03 * frameScale;
     const tailLength = this.baseTailLength + velocityMag * 0.05;
     const colors = this.lineGeometry.attributes.color.array;
 
@@ -782,16 +813,17 @@ class Wind {
         }
 
         const pushFactor = (1.8 - minV) * 1.2;
-        px += nx * pushFactor;
-        py += ny * pushFactor;
-        pz += nz * pushFactor * 0.15;
+        px += nx * pushFactor * frameScale;
+        py += ny * pushFactor * frameScale;
+        pz += nz * pushFactor * 0.15 * frameScale;
         stress = Math.min(1.0, pushFactor * 1.5);
       } else {
-        px += (this.originalX[i] - px) * 0.015;
-        py += (this.originalY[i] - py) * 0.015;
+        const recoveryAlpha = frameRateIndependentAlpha(0.015, deltaTime);
+        px += (this.originalX[i] - px) * recoveryAlpha;
+        py += (this.originalY[i] - py) * recoveryAlpha;
         if (pz < -6.0 && pz > -25.0) {
-          px += Math.sin(pz * 0.5 + i) * 0.03 * simulatedMach;
-          py += Math.cos(pz * 0.4 - i) * 0.03 * simulatedMach;
+          px += Math.sin(pz * 0.5 + i) * 0.03 * simulatedMach * frameScale;
+          py += Math.cos(pz * 0.4 - i) * 0.03 * simulatedMach * frameScale;
         }
       }
 
@@ -875,9 +907,30 @@ class FlightSim {
     );
 
     this.wind = new Wind(this.jet.jetGroup);
+    this.clock = new THREE.Clock(false);
+    this.paused = false;
+    this.hidden = document.hidden;
+
+    // Forces must be refreshed for every Cannon substep, not merely once per
+    // rendered frame. This keeps accumulated fixed steps equivalent across
+    // display refresh rates.
+    this.world.addEventListener("preStep", () => {
+      if (!this.paused && !this.hidden) this.jet.applyFlightPhysics(this.input);
+    });
 
     window.addEventListener("resize", () => this.onWindowResize());
+    document.addEventListener("visibilitychange", () => {
+      this.hidden = document.hidden;
+      if (this.hidden) this.clock.stop();
+      else if (!this.paused) this.clock.start();
+    });
+    if (this.ui.dom.pauseButton) {
+      this.ui.dom.pauseButton.addEventListener("click", () =>
+        this.setPaused(!this.paused)
+      );
+    }
     this.ui.updateGear(this.input.gearDown);
+    this.ui.updatePauseState(this.paused);
   }
   setupGraphics() {
     this.scene = new THREE.Scene();
@@ -908,7 +961,7 @@ class FlightSim {
     );
     this.world.addContactMaterial(this.physicsContactMaterial);
   }
-  updateCamera() {
+  updateCamera(deltaTime) {
     const baseOffset = new THREE.Vector3(0, 8, -25); // HEIGHT, DISTANCE
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
@@ -926,7 +979,8 @@ class FlightSim {
     orbitOffset.applyQuaternion(this.jet.jetGroup.quaternion);
 
     const targetPosition = this.jet.jetGroup.position.clone().add(orbitOffset);
-    this.camera.position.lerp(targetPosition, 0.1);
+    const cameraAlpha = frameRateIndependentAlpha(0.1, deltaTime);
+    this.camera.position.lerp(targetPosition, cameraAlpha);
 
     const lookTarget = new THREE.Vector3(0, 0, 20)
       .applyQuaternion(this.jet.jetGroup.quaternion)
@@ -935,7 +989,7 @@ class FlightSim {
       this.jet.jetGroup.quaternion
     );
 
-    this.camera.up.lerp(worldUpFromJet, 0.1);
+    this.camera.up.lerp(worldUpFromJet, cameraAlpha);
     this.camera.lookAt(lookTarget);
   }
   onWindowResize() {
@@ -943,10 +997,21 @@ class FlightSim {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
+  setPaused(paused) {
+    this.paused = paused;
+    if (paused) this.clock.stop();
+    else if (!this.hidden) this.clock.start();
+    this.ui.updatePauseState(paused);
+  }
   animate() {
     requestAnimationFrame(() => this.animate());
 
-    this.input.update();
+    if (!this.clock.running && !this.paused && !this.hidden) this.clock.start();
+    const deltaTime = this.paused || this.hidden
+      ? 0
+      : clampFrameDelta(this.clock.getDelta());
+
+    if (deltaTime > 0) this.input.update(deltaTime);
 
     if (this.input.needReset) {
       this.jet.reset();
@@ -957,16 +1022,25 @@ class FlightSim {
       this.input.throttle = 0.5;
     }
 
-    this.jet.applyFlightPhysics(this.input);
-    this.world.step(1 / 60);
+    // requestAnimationFrame is normally throttled in background tabs, but
+    // avoid all simulation, particle, HUD, and rendering work regardless.
+    if (this.hidden) return;
+
+    if (deltaTime > 0) {
+      advancePhysics(this.world, deltaTime);
+      this.jet.updateAnimations(this.input, deltaTime);
+    }
 
     const speed = this.jet.jetBody.velocity.length();
-    this.wind.update(
-      speed,
-      this.jet.simulatedMach,
-      this.ui.userWindOpacity,
-      this.ui.currentViewMode
-    );
+    if (deltaTime > 0) {
+      this.wind.update(
+        speed,
+        this.jet.simulatedMach,
+        this.ui.userWindOpacity,
+        this.ui.currentViewMode,
+        deltaTime
+      );
+    }
 
     this.ui.updateGear(this.input.gearDown);
     this.ui.updateFlightData(
@@ -978,9 +1052,22 @@ class FlightSim {
     );
     this.ui.updateVelocityVector(this.jet.jetBody);
     this.ui.updateHorizon(this.jet.jetGroup);
-    this.updateCamera();
+    this.updateCamera(deltaTime);
     this.renderer.render(this.scene, this.camera);
   }
 }
 
-new FlightSim().animate();
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  new FlightSim().animate();
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    FIXED_TIME_STEP,
+    MAX_FRAME_DELTA,
+    MAX_SUB_STEPS,
+    advancePhysics,
+    clampFrameDelta,
+    frameRateIndependentAlpha
+  };
+}

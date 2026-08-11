@@ -37,6 +37,9 @@ Then open [http://localhost:8000](http://localhost:8000) in a modern browser.
 | `Shift` / `Control` | Increase / decrease throttle |
 | `G` | Toggle landing gear |
 
+Use the visible **Pause** button to stop or resume the simulation. Physics also
+stops automatically while the browser tab is hidden.
+
 ### Gamepad
 
 | Input | Action |
