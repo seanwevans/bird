@@ -11,6 +11,8 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Airspeed, altitude, vertical speed, Mach, throttle, and landing gear HUD readouts
 - Thermal, laminar, velocity, and X-ray sensor views
 - Adjustable wind visualization
+- Low, medium, and high rendering quality presets
+- Optional development FPS and frame-time readout
 - Keyboard and gamepad support
 
 ## Run locally
@@ -49,3 +51,8 @@ Then open [http://localhost:8000](http://localhost:8000) in a modern browser.
 | B / Circle or Start | Reset the aircraft |
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
+
+Use **Quality** to trade visual density for performance. Medium is the default,
+Low is intended for integrated and mobile-class graphics, and High enables the
+maximum particle/city density and shadows. Enable **Show FPS** when profiling;
+the readout is disabled by default.

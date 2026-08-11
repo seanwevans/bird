@@ -220,6 +220,19 @@
 
           </div>
 
+          <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-cyan-900/50">
+            <label for="quality-select" class="text-[10px] text-gray-400 uppercase tracking-widest self-center">Quality</label>
+            <select id="quality-select" class="bg-slate-800 text-cyan-300 text-xs rounded border border-slate-600 px-2 py-1.5">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+            <label for="fps-toggle" class="text-[10px] text-gray-400 uppercase tracking-widest self-center">Performance</label>
+            <label class="text-xs text-gray-300 flex items-center gap-2">
+              <input id="fps-toggle" type="checkbox" class="accent-cyan-500"> Show FPS
+            </label>
+          </div>
+
         </div>
 
       </div>
@@ -227,6 +240,8 @@
     </div>
 
   </div>
+
+  <div id="fps-indicator" class="hidden" aria-live="polite">-- FPS</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>

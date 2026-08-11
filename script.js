@@ -128,8 +128,17 @@ class UIManager {
       hudPanel: document.getElementById("hud-panel"),
       hudChevron: document.getElementById("hud-chevron"),
       controllerStatus: document.getElementById("controller-status"),
-      hudGear: document.getElementById("hud-gear-on-screen")
+      hudGear: document.getElementById("hud-gear-on-screen"),
+      qualitySelect: document.getElementById("quality-select"),
+      fpsToggle: document.getElementById("fps-toggle"),
+      fpsIndicator: document.getElementById("fps-indicator")
     };
+
+    this.inverseVelocityQuaternion = new CANNON.Quaternion();
+    this.localVelocity = new CANNON.Vec3();
+    this.horizonForward = new THREE.Vector3();
+    this.horizonRight = new THREE.Vector3();
+    this.horizonUp = new THREE.Vector3();
 
     // Initialize from the slider so the wind matches the value shown in the
     // UI (2.5%) on load instead of starting invisible until the slider moves.
@@ -191,6 +200,15 @@ class UIManager {
     window.addEventListener("gamepaddisconnected", () =>
       this.updateControllerStatus(false)
     );
+
+    this.dom.qualitySelect?.addEventListener("change", (event) => {
+      window.dispatchEvent(
+        new CustomEvent("qualityChanged", { detail: event.target.value })
+      );
+    });
+    this.dom.fpsToggle?.addEventListener("change", (event) => {
+      this.dom.fpsIndicator?.classList.toggle("hidden", !event.target.checked);
+    });
   }
   updateControllerStatus(connected) {
     if (!this.dom.controllerStatus) return;
@@ -243,10 +261,9 @@ class UIManager {
   }
   updateVelocityVector(jetBody) {
     if (!this.dom.velocityVectorEl) return;
-    const invQuat = new CANNON.Quaternion();
-    jetBody.quaternion.inverse(invQuat);
-    const localVel = new CANNON.Vec3();
-    invQuat.vmult(jetBody.velocity, localVel);
+    jetBody.quaternion.inverse(this.inverseVelocityQuaternion);
+    this.inverseVelocityQuaternion.vmult(jetBody.velocity, this.localVelocity);
+    const localVel = this.localVelocity;
 
     if (localVel.z > 0.1) {
       const yawOffset = Math.atan2(localVel.x, localVel.z) * 350;
@@ -261,15 +278,15 @@ class UIManager {
   }
   updateHorizon(jetGroup) {
     if (!this.dom.horizonTransform) return;
-    const jetFwd = new THREE.Vector3(0, 0, 1).applyQuaternion(
-      jetGroup.quaternion
-    );
-    const jetRight = new THREE.Vector3(1, 0, 0).applyQuaternion(
-      jetGroup.quaternion
-    );
-    const jetUp = new THREE.Vector3(0, 1, 0).applyQuaternion(
-      jetGroup.quaternion
-    );
+    const jetFwd = this.horizonForward
+      .set(0, 0, 1)
+      .applyQuaternion(jetGroup.quaternion);
+    const jetRight = this.horizonRight
+      .set(1, 0, 0)
+      .applyQuaternion(jetGroup.quaternion);
+    const jetUp = this.horizonUp
+      .set(0, 1, 0)
+      .applyQuaternion(jetGroup.quaternion);
 
     const pitchAngle = Math.asin(jetFwd.y);
     const rollAngle = Math.atan2(jetRight.y, jetUp.y);
@@ -322,25 +339,36 @@ class ShaderUtils {
 }
 
 class Environment {
-  constructor(scene, physicsWorld, physicsMaterial) {
+  constructor(scene, physicsWorld, physicsMaterial, quality) {
     this.scene = scene;
     this.world = physicsWorld;
     this.physicsMaterial = physicsMaterial;
-    this.buildLighting();
+    this.objects = [];
+    this.bodies = [];
+    this.buildLighting(quality.shadows);
     this.buildGround();
-    this.buildCity();
+    this.buildCity(quality.cityCount);
   }
-  buildLighting() {
+  addObject(object) {
+    this.objects.push(object);
+    this.scene.add(object);
+  }
+  addBody(body) {
+    this.bodies.push(body);
+    this.world.addBody(body);
+  }
+  buildLighting(shadows) {
     this.scene.background = new THREE.Color(0x5dade2);
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    this.addObject(new THREE.AmbientLight(0xffffff, 0.7));
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(200, 500, 300);
-    this.scene.add(dirLight);
+    dirLight.castShadow = shadows;
+    this.addObject(dirLight);
 
     const fillLight = new THREE.DirectionalLight(0x5dade2, 0.5);
     fillLight.position.set(-100, -50, -100);
-    this.scene.add(fillLight);
+    this.addObject(fillLight);
   }
   buildGround() {
     const groundMat = new THREE.MeshStandardMaterial({
@@ -353,7 +381,8 @@ class Environment {
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -2;
-    this.scene.add(ground);
+    ground.receiveShadow = true;
+    this.addObject(ground);
 
     const groundBody = new CANNON.Body({
       mass: 0,
@@ -366,15 +395,15 @@ class Environment {
     );
     groundBody.position.set(0, -2, 0);
     groundBody.isGround = true;
-    this.world.addBody(groundBody);
+    this.addBody(groundBody);
 
     const gridHelper = new THREE.GridHelper(10000, 500, 0xffffff, 0xaaaaaa);
     gridHelper.position.y = 0.1;
     gridHelper.material.transparent = true;
     gridHelper.material.opacity = 0.5;
-    this.scene.add(gridHelper);
+    this.addObject(gridHelper);
   }
-  buildCity(height = 100) {
+  buildCity(count, height = 100) {
     const blockGeo = new THREE.BoxGeometry(20, height, 20);
     const blockMat = new THREE.MeshStandardMaterial({
       color: 0xdddddd,
@@ -382,14 +411,15 @@ class Environment {
     });
     const blockShape = new CANNON.Box(new CANNON.Vec3(10, height / 2, 10));
 
-    for (let i = 0; i < 1000; i++) {
+    const city = new THREE.InstancedMesh(blockGeo, blockMat, count);
+    const matrix = new THREE.Matrix4();
+    for (let i = 0; i < count; i++) {
       const x = (Math.random() - 0.5) * 4000;
       const y = 50;
       const z = (Math.random() - 0.5) * 4000;
 
-      const block = new THREE.Mesh(blockGeo, blockMat);
-      block.position.set(x, y, z);
-      this.scene.add(block);
+      matrix.setPosition(x, y, z);
+      city.setMatrixAt(i, matrix);
 
       const blockBody = new CANNON.Body({
         mass: 0,
@@ -398,8 +428,26 @@ class Environment {
       blockBody.addShape(blockShape);
       blockBody.position.set(x, y, z);
       blockBody.isBuilding = true;
-      this.world.addBody(blockBody);
+      this.addBody(blockBody);
     }
+    city.instanceMatrix.needsUpdate = true;
+    city.castShadow = true;
+    city.receiveShadow = true;
+    this.addObject(city);
+  }
+  dispose() {
+    this.objects.forEach((object) => {
+      this.scene.remove(object);
+      object.geometry?.dispose();
+      if (Array.isArray(object.material)) {
+        object.material.forEach((material) => material.dispose());
+      } else {
+        object.material?.dispose();
+      }
+    });
+    this.bodies.forEach((body) => this.world.removeBody(body));
+    this.objects.length = 0;
+    this.bodies.length = 0;
   }
 }
 
@@ -411,12 +459,16 @@ class Jet {
 
     this.jetGroup = new THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
+    this.forwardVector = new CANNON.Vec3();
+    this.upVector = new CANNON.Vec3();
+    this.localTorque = new CANNON.Vec3();
+    this.worldUp = new CANNON.Vec3(0, 1, 0);
 
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
 
     // Listen for UI view mode changes to toggle wireframe
-    window.addEventListener("viewModeChanged", (e) => {
+    this.onViewModeChanged = (e) => {
       const isWireframe = e.detail === 3;
       this.fuselageMat.wireframe = isWireframe;
       this.fuselageMat.transparent = isWireframe;
@@ -424,7 +476,8 @@ class Jet {
       this.cockpitMat.wireframe = isWireframe;
       this.cockpitMat.transparent = isWireframe;
       this.cockpitMat.opacity = isWireframe ? 0.2 : 1.0;
-    });
+    };
+    window.addEventListener("viewModeChanged", this.onViewModeChanged);
   }
   buildMeshes() {
     this.fuselageMat = new THREE.MeshStandardMaterial({
@@ -573,9 +626,10 @@ class Jet {
         return;
       }
       if (e.body.isGround) {
-        const jetUp = new CANNON.Vec3(0, 1, 0);
+        const jetUp = this.upVector;
+        jetUp.set(0, 1, 0);
         this.jetBody.quaternion.vmult(jetUp, jetUp);
-        const dotUp = jetUp.dot(new CANNON.Vec3(0, 1, 0));
+        const dotUp = jetUp.dot(this.worldUp);
 
         // This expects the 'gearDown' state to be checked dynamically in the main loop or passed in
         const isGearDown = this.currentGearState;
@@ -587,10 +641,12 @@ class Jet {
   applyFlightPhysics(input) {
     this.currentGearState = input.gearDown; // Keep reference for collisions
 
-    const forwardVec = new CANNON.Vec3(0, 0, 1);
+    const forwardVec = this.forwardVector;
+    forwardVec.set(0, 0, 1);
     this.jetBody.quaternion.vmult(forwardVec, forwardVec);
 
-    const upVec = new CANNON.Vec3(0, 1, 0);
+    const upVec = this.upVector;
+    upVec.set(0, 1, 0);
     this.jetBody.quaternion.vmult(upVec, upVec);
 
     const speed = this.jetBody.velocity.length();
@@ -610,7 +666,8 @@ class Jet {
     const rollTorque = input.roll * 1800 * controlAuthority;
     const yawTorque = input.yaw * 500 * controlAuthority;
 
-    const localTorque = new CANNON.Vec3(pitchTorque, yawTorque, rollTorque);
+    const localTorque = this.localTorque;
+    localTorque.set(pitchTorque, yawTorque, rollTorque);
     this.jetBody.quaternion.vmult(localTorque, localTorque);
 
     this.jetBody.torque.x += localTorque.x;
@@ -654,333 +711,281 @@ class Jet {
     this.jetBody.angularVelocity.set(0, 0, 0);
     this.jetBody.quaternion.set(0, 0, 0, 1);
   }
+  dispose() {
+    window.removeEventListener("viewModeChanged", this.onViewModeChanged);
+    this.world.removeBody(this.jetBody);
+    this.scene.remove(this.jetGroup);
+    const geometries = new Set();
+    const materials = new Set();
+    this.jetGroup.traverse((object) => {
+      if (object.geometry) geometries.add(object.geometry);
+      if (Array.isArray(object.material)) object.material.forEach((m) => materials.add(m));
+      else if (object.material) materials.add(object.material);
+    });
+    geometries.forEach((geometry) => geometry.dispose());
+    materials.forEach((material) => material.dispose());
+  }
 }
 
 class Wind {
-  constructor(jetGroup) {
-    this.particleCount = 4000;
+  constructor(jetGroup, quality) {
+    this.jetGroup = jetGroup;
+    this.particleCount = quality.particleCount;
     this.baseTailLength = 4.0;
-    this.TUNNEL_RADIUS = 15;
-    this.PARTICLE_START_Z = 35;
-    this.PARTICLE_END_Z = -35;
-
-    this.originalX = [];
-    this.originalY = [];
-
-    this.buildGeometry(jetGroup);
+    this.buildGeometry(quality.shaderComplexity);
   }
-  buildGeometry(jetGroup) {
+  buildGeometry(shaderComplexity) {
     this.lineGeometry = new THREE.BufferGeometry();
-    this.particlePositions = new Float32Array(this.particleCount * 2 * 3);
-    const particleColors = new Float32Array(this.particleCount * 2 * 3);
+    const positions = new Float32Array(this.particleCount * 6);
+    const phases = new Float32Array(this.particleCount * 2);
 
     for (let i = 0; i < this.particleCount; i++) {
-      const r = this.TUNNEL_RADIUS * 0.95 * Math.sqrt(Math.random());
+      const r = 14.25 * Math.sqrt(Math.random());
       const theta = Math.random() * Math.PI * 2;
       const x = r * Math.cos(theta);
       const y = r * Math.sin(theta);
-      const z =
-        this.PARTICLE_START_Z -
-        Math.random() * (this.PARTICLE_START_Z - this.PARTICLE_END_Z);
-
-      this.originalX[i] = x;
-      this.originalY[i] = y;
-
+      const z = 35 - Math.random() * 70;
       const idx = i * 6;
-      this.particlePositions[idx] = x;
-      this.particlePositions[idx + 1] = y;
-      this.particlePositions[idx + 2] = z;
-      this.particlePositions[idx + 3] = x;
-      this.particlePositions[idx + 4] = y;
-      this.particlePositions[idx + 5] = z + this.baseTailLength;
-
-      particleColors[idx] = 0.0;
-      particleColors[idx + 1] = 1.0;
-      particleColors[idx + 2] = 1.0;
-      particleColors[idx + 3] = 0.0;
-      particleColors[idx + 4] = 1.0;
-      particleColors[idx + 5] = 1.0;
+      positions.set([x, y, z, x, y, z + this.baseTailLength], idx);
+      phases[i * 2] = phases[i * 2 + 1] = Math.random() * 1000;
     }
 
-    this.lineGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(this.particlePositions, 3)
-    );
-    this.lineGeometry.setAttribute(
-      "color",
-      new THREE.BufferAttribute(particleColors, 3)
-    );
-
-    const material = new THREE.LineBasicMaterial({
-      vertexColors: true,
+    this.lineGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    this.lineGeometry.setAttribute("phase", new THREE.BufferAttribute(phases, 1));
+    this.uniforms = {
+      elapsed: { value: 0 },
+      speed: { value: 0 },
+      mach: { value: 0 },
+      opacity: { value: 0 },
+      viewMode: { value: 0 },
+      complexity: { value: shaderComplexity }
+    };
+    this.material = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
       transparent: true,
-      opacity: 0.6,
       blending: THREE.AdditiveBlending,
-      depthWrite: false
+      depthWrite: false,
+      vertexShader: `
+        attribute float phase;
+        uniform float elapsed;
+        uniform float speed;
+        uniform float mach;
+        uniform float complexity;
+        varying float vStress;
+        void main() {
+          vec3 p = position;
+          float travel = elapsed * speed * 0.03;
+          p.z = 35.0 - mod(35.0 - p.z + travel, 75.0);
+          float fuselage = dot(p / vec3(2.8, 2.8, 12.0), p / vec3(2.8, 2.8, 12.0));
+          float wing = dot((p + vec3(0.0, 0.0, 1.0)) / vec3(10.0, 1.8, 5.5), (p + vec3(0.0, 0.0, 1.0)) / vec3(10.0, 1.8, 5.5));
+          float tail = dot((p + vec3(0.0, -1.5, 4.5)) / vec3(1.5, 4.5, 5.0), (p + vec3(0.0, -1.5, 4.5)) / vec3(1.5, 4.5, 5.0));
+          float obstacle = complexity > 0.5 ? min(fuselage, min(wing, tail)) : fuselage;
+          vStress = clamp((1.8 - obstacle) * 0.8, 0.0, 1.0);
+          if (vStress > 0.0) {
+            vec2 normal = normalize(p.xy + vec2(0.0001));
+            p.xy += normal * vStress * 1.5;
+          } else if (complexity > 0.5 && p.z < -6.0 && p.z > -25.0) {
+            p.xy += vec2(sin(p.z * 0.5 + phase), cos(p.z * 0.4 - phase)) * 0.12 * mach;
+          }
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float opacity;
+        uniform float mach;
+        uniform float viewMode;
+        varying float vStress;
+        void main() {
+          vec3 color = vec3(0.0, 1.0, 1.0);
+          if (viewMode < 0.5) {
+            color = vStress < 0.5 ? vec3(vStress * 2.0, 1.0, 1.0 - vStress * 2.0) : vec3(1.0, 2.0 - vStress * 2.0, 0.0);
+          } else if (viewMode < 1.5) {
+            color = vec3(0.0, 0.8, 1.0);
+          } else if (viewMode < 2.5) {
+            float v = min(1.0, mach * 0.4 + vStress);
+            color = vec3(v, 1.0 - v * 0.5, 1.0);
+          } else {
+            float v = min(1.0, vStress * 1.5);
+            color = vec3(v * 0.5, 1.0, v * 0.2);
+          }
+          gl_FragColor = vec4(color, opacity);
+        }
+      `
     });
-
-    this.windParticles = new THREE.LineSegments(this.lineGeometry, material);
-    jetGroup.add(this.windParticles);
+    this.windParticles = new THREE.LineSegments(this.lineGeometry, this.material);
+    this.jetGroup.add(this.windParticles);
   }
-  update(velocityMag, simulatedMach, userOpacity, viewMode) {
-    this.windParticles.material.opacity =
-      Math.min(1.0, velocityMag * 0.02) * userOpacity;
-    if (velocityMag < 5) return;
-
-    const windFlowSpeed = velocityMag * 0.03;
-    const tailLength = this.baseTailLength + velocityMag * 0.05;
-    const colors = this.lineGeometry.attributes.color.array;
-
-    for (let i = 0; i < this.particleCount; i++) {
-      const idx = i * 6;
-      let px = this.particlePositions[idx];
-      let py = this.particlePositions[idx + 1];
-      let pz = this.particlePositions[idx + 2];
-      pz -= windFlowSpeed;
-
-      let stress = 0;
-      const fV =
-        (px * px) / (2.8 * 2.8) +
-        (py * py) / (2.8 * 2.8) +
-        (pz * pz) / (12.0 * 12.0);
-      const wZ = pz + 1.0;
-      const wV =
-        (px * px) / (10.0 * 10.0) +
-        (py * py) / (1.8 * 1.8) +
-        (wZ * wZ) / (5.5 * 5.5);
-      const tY = py - 1.5;
-      const tZ = pz + 4.5;
-      const tV =
-        (px * px) / (1.5 * 1.5) +
-        (tY * tY) / (4.5 * 4.5) +
-        (tZ * tZ) / (5.0 * 5.0);
-      const minV = Math.min(fV, wV, tV);
-
-      if (minV < 1.8) {
-        let nx = 0,
-          ny = 0,
-          nz = 0;
-        if (minV === fV) {
-          nx = (2 * px) / (2.8 * 2.8);
-          ny = (2 * py) / (2.8 * 2.8);
-          nz = (2 * pz) / (12.0 * 12.0);
-        } else if (minV === wV) {
-          nx = (2 * px) / (10.0 * 10.0);
-          ny = (2 * py) / (1.8 * 1.8);
-          nz = (2 * wZ) / (5.5 * 5.5);
-        } else {
-          nx = (2 * px) / (1.5 * 1.5);
-          ny = (2 * tY) / (4.5 * 4.5);
-          nz = (2 * tZ) / (5.0 * 5.0);
-        }
-
-        const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        if (nLen > 0.001) {
-          nx /= nLen;
-          ny /= nLen;
-          nz /= nLen;
-        }
-
-        const pushFactor = (1.8 - minV) * 1.2;
-        px += nx * pushFactor;
-        py += ny * pushFactor;
-        pz += nz * pushFactor * 0.15;
-        stress = Math.min(1.0, pushFactor * 1.5);
-      } else {
-        px += (this.originalX[i] - px) * 0.015;
-        py += (this.originalY[i] - py) * 0.015;
-        if (pz < -6.0 && pz > -25.0) {
-          px += Math.sin(pz * 0.5 + i) * 0.03 * simulatedMach;
-          py += Math.cos(pz * 0.4 - i) * 0.03 * simulatedMach;
-        }
-      }
-
-      if (pz < this.PARTICLE_END_Z) {
-        pz = this.PARTICLE_START_Z + Math.random() * 5;
-        px = this.originalX[i];
-        py = this.originalY[i];
-      }
-
-      this.particlePositions[idx] = px;
-      this.particlePositions[idx + 1] = py;
-      this.particlePositions[idx + 2] = pz;
-      this.particlePositions[idx + 3] = px;
-      this.particlePositions[idx + 4] = py;
-      this.particlePositions[idx + 5] = pz + tailLength;
-
-      let r = 0,
-        g = 1,
-        b = 1;
-      if (viewMode === 0 && stress > 0.01) {
-        if (stress < 0.5) {
-          const t = stress * 2.0;
-          r = t;
-          g = 1.0;
-          b = 1.0 - t;
-        } else {
-          const t = (stress - 0.5) * 2.0;
-          r = 1.0;
-          g = 1.0 - t;
-          b = 0.0;
-        }
-      } else if (viewMode === 1) {
-        r = 0.0;
-        g = 0.8;
-        b = 1.0;
-      } else if (viewMode === 2) {
-        const v = Math.min(1.0, simulatedMach * 0.4 + stress);
-        r = v;
-        g = 1.0 - v * 0.5;
-        b = 1.0;
-      } else if (viewMode === 3) {
-        const v = Math.min(1.0, stress * 1.5);
-        r = v * 0.5;
-        g = 1.0;
-        b = v * 0.2;
-      }
-
-      colors[idx] = r;
-      colors[idx + 1] = g;
-      colors[idx + 2] = b;
-      colors[idx + 3] = r;
-      colors[idx + 4] = g;
-      colors[idx + 5] = b;
-    }
-
-    this.lineGeometry.attributes.position.needsUpdate = true;
-    this.lineGeometry.attributes.color.needsUpdate = true;
+  update(delta, velocityMag, simulatedMach, userOpacity, viewMode) {
+    this.uniforms.elapsed.value += Math.min(delta, 0.1);
+    this.uniforms.speed.value = velocityMag;
+    this.uniforms.mach.value = simulatedMach;
+    this.uniforms.opacity.value = Math.min(1, velocityMag * 0.02) * userOpacity;
+    this.uniforms.viewMode.value = viewMode;
+  }
+  dispose() {
+    this.jetGroup.remove(this.windParticles);
+    this.lineGeometry.dispose();
+    this.material.dispose();
   }
 }
 
 class FlightSim {
   constructor() {
+    this.qualityPresets = {
+      low: { particleCount: 1000, pixelRatio: 1, antialias: false, cityCount: 200, shadows: false, shaderComplexity: 0 },
+      medium: { particleCount: 2500, pixelRatio: 1.5, antialias: true, cityCount: 500, shadows: false, shaderComplexity: 1 },
+      high: { particleCount: 4000, pixelRatio: 2, antialias: true, cityCount: 1000, shadows: true, shaderComplexity: 1 }
+    };
+    this.qualityName = "medium";
+    this.quality = this.qualityPresets[this.qualityName];
+    this.clock = new THREE.Clock();
+    this.hudElapsed = 0;
+    this.fpsElapsed = 0;
+    this.fpsFrames = 0;
+    this.cameraBaseOffset = new THREE.Vector3(0, 8, -25);
+    this.cameraOrbitOffset = new THREE.Vector3();
+    this.cameraTargetPosition = new THREE.Vector3();
+    this.cameraLookTarget = new THREE.Vector3();
+    this.cameraWorldUp = new THREE.Vector3();
+    this.cameraYawQuaternion = new THREE.Quaternion();
+    this.cameraPitchQuaternion = new THREE.Quaternion();
+    this.yAxis = new THREE.Vector3(0, 1, 0);
+    this.xAxis = new THREE.Vector3(1, 0, 0);
+
     this.setupGraphics();
     this.setupPhysics();
-
     this.input = new InputController();
     this.ui = new UIManager();
-    this.environment = new Environment(
-      this.scene,
-      this.world,
-      this.physicsMaterial
-    );
+    this.environment = new Environment(this.scene, this.world, this.physicsMaterial, this.quality);
+    this.jet = new Jet(this.scene, this.world, this.physicsMaterial, () => {
+      this.input.needReset = true;
+    });
+    this.wind = new Wind(this.jet.jetGroup, this.quality);
 
-    this.jet = new Jet(
-      this.scene,
-      this.world,
-      this.physicsContactMaterial.materials[0],
-      () => {
-        this.input.needReset = true;
-      }
-    );
-
-    this.wind = new Wind(this.jet.jetGroup);
-
-    window.addEventListener("resize", () => this.onWindowResize());
+    this.onResize = () => this.onWindowResize();
+    this.onQualityChanged = (event) => this.setQuality(event.detail);
+    this.onUnload = () => this.dispose();
+    window.addEventListener("resize", this.onResize);
+    window.addEventListener("qualityChanged", this.onQualityChanged);
+    window.addEventListener("beforeunload", this.onUnload, { once: true });
     this.ui.updateGear(this.input.gearDown);
+    this.previousGearState = this.input.gearDown;
+  }
+  createRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: this.quality.antialias, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.pixelRatio, 2));
+    renderer.shadowMap.enabled = this.quality.shadows;
+    return renderer;
   }
   setupGraphics() {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      5000
-    );
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
     this.camera.position.set(0, 158, -25);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    const container = document.getElementById("canvas-container");
-    if (container) container.appendChild(this.renderer.domElement);
+    this.renderer = this.createRenderer();
+    document.getElementById("canvas-container")?.appendChild(this.renderer.domElement);
   }
   setupPhysics() {
     this.world = new CANNON.World();
     this.world.gravity.set(0, -15, 0);
-    this.world.broadphase = new CANNON.NaiveBroadphase();
+    this.world.broadphase = new CANNON.SAPBroadphase(this.world);
     this.world.solver.iterations = 10;
-
     this.physicsMaterial = new CANNON.Material("standard");
-    this.physicsContactMaterial = new CANNON.ContactMaterial(
-      this.physicsMaterial,
-      this.physicsMaterial,
-      { friction: 0.05, restitution: 0.1 }
-    );
+    this.physicsContactMaterial = new CANNON.ContactMaterial(this.physicsMaterial, this.physicsMaterial, { friction: 0.05, restitution: 0.1 });
     this.world.addContactMaterial(this.physicsContactMaterial);
   }
+  setQuality(name) {
+    const nextQuality = this.qualityPresets[name];
+    if (!nextQuality || name === this.qualityName) return;
+    this.qualityName = name;
+    this.quality = nextQuality;
+    this.wind.dispose();
+    this.environment.dispose();
+    this.environment = new Environment(this.scene, this.world, this.physicsMaterial, this.quality);
+    this.wind = new Wind(this.jet.jetGroup, this.quality);
+
+    const oldRenderer = this.renderer;
+    this.renderer = this.createRenderer();
+    oldRenderer.domElement.replaceWith(this.renderer.domElement);
+    oldRenderer.dispose();
+    oldRenderer.forceContextLoss?.();
+  }
   updateCamera() {
-    const baseOffset = new THREE.Vector3(0, 8, -25); // HEIGHT, DISTANCE
-    const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      this.input.orbitYaw
-    );
-    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(1, 0, 0),
-      this.input.orbitPitch
-    );
-
-    const orbitOffset = baseOffset
-      .clone()
-      .applyQuaternion(pitchQuat)
-      .applyQuaternion(yawQuat);
-    orbitOffset.applyQuaternion(this.jet.jetGroup.quaternion);
-
-    const targetPosition = this.jet.jetGroup.position.clone().add(orbitOffset);
-    this.camera.position.lerp(targetPosition, 0.1);
-
-    const lookTarget = new THREE.Vector3(0, 0, 20)
+    this.cameraYawQuaternion.setFromAxisAngle(this.yAxis, this.input.orbitYaw);
+    this.cameraPitchQuaternion.setFromAxisAngle(this.xAxis, this.input.orbitPitch);
+    this.cameraOrbitOffset.copy(this.cameraBaseOffset)
+      .applyQuaternion(this.cameraPitchQuaternion)
+      .applyQuaternion(this.cameraYawQuaternion)
+      .applyQuaternion(this.jet.jetGroup.quaternion);
+    this.cameraTargetPosition.copy(this.jet.jetGroup.position).add(this.cameraOrbitOffset);
+    this.camera.position.lerp(this.cameraTargetPosition, 0.1);
+    this.cameraLookTarget.set(0, 0, 20)
       .applyQuaternion(this.jet.jetGroup.quaternion)
       .add(this.jet.jetGroup.position);
-    const worldUpFromJet = new THREE.Vector3(0, 1, 0).applyQuaternion(
-      this.jet.jetGroup.quaternion
-    );
-
-    this.camera.up.lerp(worldUpFromJet, 0.1);
-    this.camera.lookAt(lookTarget);
+    this.cameraWorldUp.set(0, 1, 0).applyQuaternion(this.jet.jetGroup.quaternion);
+    this.camera.up.lerp(this.cameraWorldUp, 0.1);
+    this.camera.lookAt(this.cameraLookTarget);
   }
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.pixelRatio, 2));
   }
-  animate() {
-    requestAnimationFrame(() => this.animate());
-
-    this.input.update();
-
-    if (this.input.needReset) {
-      this.jet.reset();
-      this.input.needReset = false;
-      this.input.gearDown = false;
-      this.input.orbitYaw = 0;
-      this.input.orbitPitch = 0;
-      this.input.throttle = 0.5;
-    }
-
-    this.jet.applyFlightPhysics(this.input);
-    this.world.step(1 / 60);
-
-    const speed = this.jet.jetBody.velocity.length();
-    this.wind.update(
-      speed,
-      this.jet.simulatedMach,
-      this.ui.userWindOpacity,
-      this.ui.currentViewMode
-    );
-
-    this.ui.updateGear(this.input.gearDown);
-    this.ui.updateFlightData(
-      speed,
-      this.jet.simulatedMach,
-      this.jet.jetBody.position.y,
-      this.jet.jetBody.velocity.y * 180,
-      this.input.throttle
-    );
+  updateHud(speed) {
+    this.ui.updateFlightData(speed, this.jet.simulatedMach, this.jet.jetBody.position.y, this.jet.jetBody.velocity.y * 180, this.input.throttle);
     this.ui.updateVelocityVector(this.jet.jetBody);
     this.ui.updateHorizon(this.jet.jetGroup);
+  }
+  updateFps(delta) {
+    this.fpsElapsed += delta;
+    this.fpsFrames++;
+    if (this.fpsElapsed >= 0.5) {
+      if (this.ui.dom.fpsToggle?.checked && this.ui.dom.fpsIndicator) {
+        const fps = Math.round(this.fpsFrames / this.fpsElapsed);
+        this.ui.dom.fpsIndicator.textContent = `${fps} FPS · ${(1000 / Math.max(fps, 1)).toFixed(1)} ms`;
+      }
+      this.fpsElapsed = 0;
+      this.fpsFrames = 0;
+    }
+  }
+  animate() {
+    this.animationFrame = requestAnimationFrame(() => this.animate());
+    const delta = Math.min(this.clock.getDelta(), 0.1);
+    this.input.update();
+    if (this.input.needReset) {
+      this.jet.reset();
+      Object.assign(this.input, { needReset: false, gearDown: false, orbitYaw: 0, orbitPitch: 0, throttle: 0.5 });
+    }
+    this.jet.applyFlightPhysics(this.input);
+    this.world.step(1 / 60, delta, 3);
+    const speed = this.jet.jetBody.velocity.length();
+    this.wind.update(delta, speed, this.jet.simulatedMach, this.ui.userWindOpacity, this.ui.currentViewMode);
+    if (this.previousGearState !== this.input.gearDown) {
+      this.ui.updateGear(this.input.gearDown);
+      this.previousGearState = this.input.gearDown;
+    }
+    this.hudElapsed += delta;
+    if (this.hudElapsed >= 0.1) {
+      this.updateHud(speed);
+      this.hudElapsed %= 0.1;
+    }
+    this.updateFps(delta);
     this.updateCamera();
     this.renderer.render(this.scene, this.camera);
   }
+  dispose() {
+    cancelAnimationFrame(this.animationFrame);
+    window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("qualityChanged", this.onQualityChanged);
+    this.wind.dispose();
+    this.jet.dispose();
+    this.environment.dispose();
+    this.renderer.dispose();
+    this.renderer.forceContextLoss?.();
+    this.renderer.domElement.remove();
+  }
 }
 
-new FlightSim().animate();
+const flightSim = new FlightSim();
+flightSim.animate();
