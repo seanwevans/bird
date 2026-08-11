@@ -18,6 +18,7 @@ export class AircraftModel {
 
     this.jetGroup = new this.THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
+    this.simulatedMach = 0;
 
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
@@ -225,10 +226,8 @@ export class AircraftModel {
 
     this.simulatedMach = forces.mach;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
-
-    this.updateAnimations(input);
   }
-  updateAnimations(input) {
+  updateAnimations(input, deltaTime = 1 / 60) {
     this.jetGroup.position.copy(this.jetBody.position);
     this.jetGroup.quaternion.copy(this.jetBody.quaternion);
 
@@ -237,22 +236,24 @@ export class AircraftModel {
     const targetLeftElevon = (input.pitch - input.roll) * 0.6;
     const targetRudder = input.yaw * 0.5;
 
+    const controlAlpha = 1 - Math.pow(1 - 0.2, deltaTime * 60);
+    const gearAlpha = 1 - Math.pow(1 - 0.1, deltaTime * 60);
     this.rightElevon.rotation.x +=
-      (targetRightElevon - this.rightElevon.rotation.x) * 0.2;
+      (targetRightElevon - this.rightElevon.rotation.x) * controlAlpha;
     this.leftElevon.rotation.x +=
-      (targetLeftElevon - this.leftElevon.rotation.x) * 0.2;
+      (targetLeftElevon - this.leftElevon.rotation.x) * controlAlpha;
     this.rudderGroup.rotation.y +=
-      (targetRudder - this.rudderGroup.rotation.y) * 0.2;
+      (targetRudder - this.rudderGroup.rotation.y) * controlAlpha;
 
     // Landing Gear
     const targetRot = input.gearDown ? 0 : -Math.PI / 2;
     this.noseGearPivot.rotation.x +=
-      (targetRot - this.noseGearPivot.rotation.x) * 0.1;
+      (targetRot - this.noseGearPivot.rotation.x) * gearAlpha;
     this.leftGearPivot.rotation.z +=
-      (targetRot - this.leftGearPivot.rotation.z) * 0.1;
+      (targetRot - this.leftGearPivot.rotation.z) * gearAlpha;
     this.rightGearPivot.rotation.z +=
       ((input.gearDown ? 0 : Math.PI / 2) - this.rightGearPivot.rotation.z) *
-      0.1;
+      gearAlpha;
   }
   reset() {
     this.jetBody.position.set(0, 150, 0);

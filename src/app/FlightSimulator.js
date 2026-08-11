@@ -20,6 +20,12 @@ export class FlightSimulator {
     this.THREE = THREE;
     this.CANNON = CANNON;
     this.window = window;
+    this.document = document;
+    this.fixedTimeStep = 1 / 60;
+    this.maxSubSteps = 5;
+    this.maxFrameDelta = this.fixedTimeStep * this.maxSubSteps;
+    this.paused = false;
+    this.clock = new THREE.Clock(false);
     this.rendererSystem =
       rendererSystem ??
       new Renderer({
@@ -61,11 +67,29 @@ export class FlightSimulator {
     // Compatibility name for integrations that previously accessed `jet`.
     this.jet = this.aircraft;
     this.wind = new WindVisualization(this.aircraft.jetGroup, { THREE });
+    this.world.addEventListener("preStep", () => {
+      if (!this.paused) this.aircraft.applyFlightPhysics(this.input);
+    });
     window.addEventListener("resize", () => this.rendererSystem.resize());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.clock.stop();
+      else if (!this.paused) this.clock.start();
+    });
+    document
+      .getElementById("pause-toggle")
+      ?.addEventListener("click", () => this.setPaused(!this.paused));
     this.ui.updateGear(this.input.gearDown);
+    this.ui.updatePaused(this.paused);
   }
 
-  updateCamera() {
+  setPaused(paused) {
+    this.paused = paused;
+    if (paused) this.clock.stop();
+    else if (!this.document.hidden) this.clock.start();
+    this.ui.updatePaused(paused);
+  }
+
+  updateCamera(deltaTime = 1 / 60) {
     const THREE = this.THREE;
     const baseOffset = new THREE.Vector3(0, 8, -25);
     const yaw = new THREE.Quaternion().setFromAxisAngle(
@@ -81,9 +105,10 @@ export class FlightSimulator {
       .applyQuaternion(pitch)
       .applyQuaternion(yaw);
     orbitOffset.applyQuaternion(this.aircraft.jetGroup.quaternion);
+    const cameraAlpha = 1 - Math.pow(1 - 0.1, deltaTime * 60);
     this.camera.position.lerp(
       this.aircraft.jetGroup.position.clone().add(orbitOffset),
-      0.1,
+      cameraAlpha,
     );
     const target = new THREE.Vector3(0, 0, 20)
       .applyQuaternion(this.aircraft.jetGroup.quaternion)
@@ -92,19 +117,24 @@ export class FlightSimulator {
       new THREE.Vector3(0, 1, 0).applyQuaternion(
         this.aircraft.jetGroup.quaternion,
       ),
-      0.1,
+      cameraAlpha,
     );
     this.camera.lookAt(target);
   }
 
-  update() {
-    this.input.update();
+  update(deltaTime = this.fixedTimeStep) {
+    const safeDelta = Math.max(0, Math.min(deltaTime, this.maxFrameDelta));
+    if (this.paused || this.document.hidden) {
+      this.rendererSystem.render();
+      return;
+    }
+    this.input.update(safeDelta);
     if (this.input.needReset) {
       this.aircraft.reset();
       this.input.reset();
     }
-    this.aircraft.applyFlightPhysics(this.input);
-    this.world.step(1 / 60);
+    this.world.step(this.fixedTimeStep, safeDelta, this.maxSubSteps);
+    this.aircraft.updateAnimations(this.input, safeDelta);
     const body = this.aircraft.jetBody;
     const speed = body.velocity.length();
     this.wind.update(
@@ -112,6 +142,7 @@ export class FlightSimulator {
       this.aircraft.simulatedMach,
       this.ui.userWindOpacity,
       this.ui.currentViewMode,
+      safeDelta,
     );
     this.ui.updateGear(this.input.gearDown);
     this.ui.updateFlightData(
@@ -123,12 +154,14 @@ export class FlightSimulator {
     );
     this.ui.updateVelocityVector(body);
     this.ui.updateHorizon(this.aircraft.jetGroup);
-    this.updateCamera();
+    this.updateCamera(safeDelta);
     this.rendererSystem.render();
   }
 
   animate() {
+    if (!this.clock.running && !this.paused && !this.document.hidden)
+      this.clock.start();
     this.window.requestAnimationFrame(() => this.animate());
-    this.update();
+    this.update(this.clock.running ? this.clock.getDelta() : 0);
   }
 }

@@ -52,19 +52,22 @@ export class InputController {
     return normalizeKey(key);
   }
 
-  update() {
+  update(deltaTime = 1 / 60) {
     this.pitch = this.roll = this.yaw = 0;
     const gamepad = this.navigator?.getGamepads?.()[0];
     if (gamepad) this.applyGamepad(gamepad);
     else {
-      this.applyKeyboard();
+      this.applyKeyboard(deltaTime);
       this.lastGearBtn = this.lastResetBtn = false;
     }
   }
 
-  applyKeyboard() {
-    if (this.keys.Shift) this.throttle = Math.min(1, this.throttle + 0.01);
-    if (this.keys.Control) this.throttle = Math.max(0, this.throttle - 0.01);
+  applyKeyboard(deltaTime = 1 / 60) {
+    const throttleChange = 0.6 * deltaTime;
+    if (this.keys.Shift)
+      this.throttle = Math.min(1, this.throttle + throttleChange);
+    if (this.keys.Control)
+      this.throttle = Math.max(0, this.throttle - throttleChange);
     if (this.keys.w) this.pitch = -1;
     if (this.keys.s) this.pitch = 1;
     if (this.keys.a) this.roll = 1;

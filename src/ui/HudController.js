@@ -30,6 +30,7 @@ export class HudController {
       hudChevron: this.document.getElementById("hud-chevron"),
       controllerStatus: this.document.getElementById("controller-status"),
       hudGear: this.document.getElementById("hud-gear-on-screen"),
+      pauseButton: this.document.getElementById("pause-toggle"),
     };
 
     // Initialize from the slider so the wind matches the value shown in the
@@ -40,6 +41,11 @@ export class HudController {
     this.currentViewMode = 0;
 
     this.bindEvents();
+  }
+  updatePaused(paused) {
+    if (!this.dom.pauseButton) return;
+    this.dom.pauseButton.textContent = paused ? "Resume" : "Pause";
+    this.dom.pauseButton.setAttribute("aria-pressed", String(paused));
   }
   bindEvents() {
     if (this.dom.hudToggle && this.dom.hudPanel && this.dom.hudChevron) {
