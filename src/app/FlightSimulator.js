@@ -79,6 +79,7 @@ export class FlightSimulator {
       .getElementById("pause-toggle")
       ?.addEventListener("click", () => this.setPaused(!this.paused));
     this.ui.updateGear(this.input.gearDown);
+    this.ui.updateAerodynamics(this.aircraft.flightData);
     this.ui.updatePaused(this.paused);
   }
 
@@ -145,6 +146,7 @@ export class FlightSimulator {
       safeDelta,
     );
     this.ui.updateGear(this.input.gearDown);
+    this.ui.updateAerodynamics(this.aircraft.flightData);
     this.ui.updateFlightData(
       speed,
       this.aircraft.simulatedMach,

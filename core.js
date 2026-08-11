@@ -2,6 +2,8 @@
 export {
   clamp,
   calculateFlightForces,
+  airDensityAtAltitude,
+  interpolateCurve,
 } from "./src/physics/AircraftDynamics.js";
 export { normalizeKey } from "./src/input/InputController.js";
 export { formatFlightData } from "./src/ui/HudFormatter.js";

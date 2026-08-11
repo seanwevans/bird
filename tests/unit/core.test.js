@@ -31,17 +31,35 @@ describe("flight helpers", () => {
     });
   });
 
-  it("calculates thrust, lift, control authority, and Mach", () => {
+  it("calculates airflow-relative forces, stall, gear drag, and Mach", () => {
+    const clean = calculateFlightForces(
+      { x: 0, y: 0, z: 100 },
+      0,
+      0.5,
+      { pitch: 1, roll: -1, yaw: 0.5 },
+      false,
+    );
+    const gear = calculateFlightForces(
+      { x: 0, y: 0, z: 100 },
+      0,
+      0.5,
+      { pitch: 1, roll: -1, yaw: 0.5 },
+      true,
+    );
+    expect(clean.angleOfAttack).toBe(0);
+    expect(clean.dynamicPressure).toBeCloseTo(6125);
+    expect(clean.localForce.y).toBeCloseTo(551.25);
+    expect(gear.dragCoefficient).toBeCloseTo(clean.dragCoefficient + 0.08);
+    expect(gear.localForce.z).toBeLessThan(clean.localForce.z);
+    expect(clean.localTorque).toEqual({ x: 1000, y: 250, z: -1800 });
+    expect(clean.mach).toBeCloseTo(100 / 343);
     expect(
-      calculateFlightForces(20, 0.5, { pitch: 1, roll: -1, yaw: 0.5 }),
-    ).toEqual({
-      thrust: 2250,
-      lift: 20,
-      pitchTorque: 500,
-      rollTorque: -900,
-      yawTorque: 125,
-      mach: 20 / 150,
-    });
+      calculateFlightForces({ x: 0, y: -50, z: 100 }, 0, 0, {
+        pitch: 0,
+        roll: 0,
+        yaw: 0,
+      }).stall,
+    ).toBe(true);
   });
 
   it("restores the input state after a reset", () => {
