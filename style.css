@@ -50,6 +50,23 @@ body {
   box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
 }
 
+/* Dismissing the start screen fades it out and then takes it out of hit
+   testing and the accessibility tree, so the delay lives here rather than in a
+   timer in JavaScript. */
+#start-screen {
+  transition:
+    opacity 400ms ease,
+    visibility 0s;
+}
+
+#start-screen.dismissed {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 400ms ease,
+    visibility 0s 400ms;
+}
+
 /* The HUD is dark and low contrast, so the browser default focus ring is easy
    to lose. Keyboard users get an explicit one; mouse users still get none. */
 :focus-visible {

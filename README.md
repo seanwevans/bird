@@ -8,6 +8,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 
 ## Features
 
+- A start screen over a live orbiting preview of the aircraft
 - Physics-driven flight powered by Cannon.js, including angle of attack,
   sideslip, stalls, induced drag, and altitude-dependent air density
 - Real-time 3D rendering with Three.js
@@ -50,6 +51,16 @@ npm run check
 ```
 
 Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
+
+## Starting
+
+The simulator opens on a title screen with the controls, over a live view of
+the aircraft parked above the city while the camera sweeps around it. Nothing is
+simulated until **TAKE OFF** is pressed — no physics steps, no input — so the
+flight always begins from the same state however long the screen is left up.
+
+A page with no `#start-screen` element, such as an embedded or test document,
+starts flying immediately.
 
 ## Controls
 

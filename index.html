@@ -130,6 +130,68 @@
       class="absolute top-[34%] left-1/2 -translate-x-1/2 z-20 pointer-events-none font-mono text-lg font-bold tracking-widest text-red-400 drop-shadow-[0_0_6px_rgba(248,113,113,0.9)] opacity-0 transition-opacity duration-500 whitespace-nowrap"
     ></div>
 
+    <div
+      id="start-screen"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="start-title"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-6 md:justify-start md:pl-[6vw]"
+    >
+      <div
+        class="control-panel rounded-2xl px-8 py-7 w-[min(92vw,30rem)] flex flex-col gap-5"
+      >
+        <div class="text-center">
+          <h1
+            id="start-title"
+            class="text-2xl font-bold tracking-[0.25em] text-cyan-300 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+          >
+            AERODYNAMICS
+          </h1>
+          <p
+            class="mt-1 text-[11px] font-bold uppercase tracking-[0.35em] text-cyan-500/80"
+          >
+            Flight Simulator
+          </p>
+        </div>
+
+        <p class="text-center text-sm text-slate-300">
+          You start airborne over the city at 150 m. The runway lies straight
+          ahead — drop the gear and fly it down, or open the HUD and watch the
+          airflow instead.
+        </p>
+
+        <dl
+          class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 font-mono text-xs text-slate-300"
+        >
+          <dt class="text-cyan-400">W / S</dt>
+          <dd>Pitch down / up</dd>
+          <dt class="text-cyan-400">A / D</dt>
+          <dd>Roll left / right</dd>
+          <dt class="text-cyan-400">Q / E</dt>
+          <dd>Yaw left / right</dd>
+          <dt class="text-cyan-400">Shift / Ctrl</dt>
+          <dd>Throttle up / down</dd>
+          <dt class="text-cyan-400">G</dt>
+          <dd>Landing gear</dd>
+          <dt class="text-cyan-400">P / R / H</dt>
+          <dd>Pause / reset / HUD</dd>
+        </dl>
+
+        <p class="text-center text-[11px] text-slate-400">
+          A gamepad works too — left stick to fly, right stick to look around.
+        </p>
+
+        <button
+          id="start-button"
+          type="button"
+          autofocus
+          class="w-full rounded-lg border border-cyan-500/50 bg-cyan-900/40 px-4 py-3 text-sm font-bold tracking-[0.2em] text-cyan-300 transition-all hover:bg-cyan-800/50 hover:text-cyan-200"
+        >
+          TAKE OFF
+        </button>
+      </div>
+    </div>
+
     <div id="ui-layer">
       <div class="flex items-center gap-2 mb-2">
         <button

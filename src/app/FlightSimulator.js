@@ -6,6 +6,16 @@ import { Environment } from "../rendering/Environment.js";
 import { Renderer } from "../rendering/Renderer.js";
 import { WindVisualization } from "../rendering/WindVisualization.js";
 import { HudController } from "../ui/HudController.js";
+import { StartScreen } from "../ui/StartScreen.js";
+
+/** How the camera behaves behind the start screen: a slow sweep around the
+ * parked aircraft, from slightly above it. */
+export const PREVIEW_ORBIT = Object.freeze({
+  rate: 0.25,
+  pitch: 0.22,
+  /** Multiplier on the chase distance, to frame the whole aircraft. */
+  distance: 1.5,
+});
 
 /** Coordinates the independently testable input, physics, rendering, and UI systems. */
 export class FlightSimulator {
@@ -70,7 +80,8 @@ export class FlightSimulator {
     this.jet = this.aircraft;
     this.wind = new WindVisualization(this.aircraft.jetGroup, { THREE });
     this.world.addEventListener("preStep", () => {
-      if (!this.paused) this.aircraft.applyFlightPhysics(this.input);
+      if (!this.paused && this.started)
+        this.aircraft.applyFlightPhysics(this.input);
     });
     window.addEventListener("resize", () => this.rendererSystem.resize());
     document.addEventListener("visibilitychange", () => {
@@ -80,9 +91,29 @@ export class FlightSimulator {
     document
       .getElementById("pause-toggle")
       ?.addEventListener("click", () => this.setPaused(!this.paused));
+    this.previewOrbitYaw = 0;
+    this.startScreen = new StartScreen({
+      document,
+      onStart: () => this.start(),
+    });
+    // With no overlay in the page — an embedded or test document — there is
+    // nothing to dismiss, so the flight begins immediately.
+    this.started = !this.startScreen.showing;
+
     this.ui.updateGear(this.input.gearDown);
     this.ui.updateAerodynamics(this.aircraft.flightData);
     this.ui.updatePaused(this.paused);
+  }
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    // Hand the camera back to the player from wherever the preview left it,
+    // and drop anything typed at the overlay.
+    this.input.orbitYaw = 0;
+    this.input.orbitPitch = 0;
+    this.input.needReset = false;
+    if (!this.document.hidden && !this.paused) this.clock.start();
   }
 
   setPaused(paused) {
@@ -92,16 +123,39 @@ export class FlightSimulator {
     this.ui.updatePaused(paused);
   }
 
+  /** The player's orbit while flying, an automatic sweep while the start
+   * screen is up. */
+  cameraOrbit() {
+    return this.started
+      ? {
+          yaw: this.input.orbitYaw,
+          pitch: this.input.orbitPitch,
+          distance: 1,
+          // Flying, the camera leads the aircraft so the view is down its
+          // flight path; parked, it simply frames the aircraft itself.
+          lookAhead: 20,
+        }
+      : {
+          yaw: this.previewOrbitYaw,
+          pitch: PREVIEW_ORBIT.pitch,
+          distance: PREVIEW_ORBIT.distance,
+          lookAhead: 0,
+        };
+  }
+
   updateCamera(deltaTime = 1 / 60) {
     const THREE = this.THREE;
-    const baseOffset = new THREE.Vector3(0, 8, -25);
+    const orbit = this.cameraOrbit();
+    const baseOffset = new THREE.Vector3(0, 8, -25).multiplyScalar(
+      orbit.distance,
+    );
     const yaw = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
-      this.input.orbitYaw,
+      orbit.yaw,
     );
     const pitch = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(1, 0, 0),
-      this.input.orbitPitch,
+      orbit.pitch,
     );
     const orbitOffset = baseOffset
       .clone()
@@ -113,7 +167,7 @@ export class FlightSimulator {
       this.aircraft.jetGroup.position.clone().add(orbitOffset),
       cameraAlpha,
     );
-    const target = new THREE.Vector3(0, 0, 20)
+    const target = new THREE.Vector3(0, 0, orbit.lookAhead)
       .applyQuaternion(this.aircraft.jetGroup.quaternion)
       .add(this.aircraft.jetGroup.position);
     this.camera.up.lerp(
@@ -128,14 +182,24 @@ export class FlightSimulator {
   /** Act on the one-shot key requests. Runs even while paused, so the pause
    * shortcut can start the simulation again. */
   applyRequests() {
-    if (this.input.takeRequest("pauseToggleRequested"))
-      this.setPaused(!this.paused);
-    if (this.input.takeRequest("hudToggleRequested")) this.ui.toggleHudPanel();
+    const pause = this.input.takeRequest("pauseToggleRequested");
+    const hud = this.input.takeRequest("hudToggleRequested");
+    // The requests are taken either way, so a key pressed at the start screen
+    // does not fire the moment the flight begins.
+    if (!this.started) return;
+    if (pause) this.setPaused(!this.paused);
+    if (hud) this.ui.toggleHudPanel();
   }
 
   update(deltaTime = this.fixedTimeStep) {
     const safeDelta = Math.max(0, Math.min(deltaTime, this.maxFrameDelta));
     this.applyRequests();
+    if (!this.started) {
+      this.previewOrbitYaw += safeDelta * PREVIEW_ORBIT.rate;
+      this.updateCamera(safeDelta);
+      this.rendererSystem.render();
+      return;
+    }
     if (this.paused || this.document.hidden) {
       this.ui.updateAlert(safeDelta);
       this.rendererSystem.render();
