@@ -68,8 +68,9 @@ export class HudController {
 
   toggleHudPanel() {
     if (!this.dom.hudPanel || !this.dom.hudChevron) return;
-    this.dom.hudPanel.classList.toggle("hidden");
+    const open = this.dom.hudPanel.classList.toggle("hidden") === false;
     this.dom.hudChevron.classList.toggle("rotate-180");
+    this.dom.hudToggle?.setAttribute("aria-expanded", String(open));
   }
 
   bindEvents() {
@@ -86,20 +87,22 @@ export class HudController {
 
     this.dom.viewBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
-        this.dom.viewBtns.forEach((b) =>
+        this.dom.viewBtns.forEach((b) => {
           b.classList.remove(
             "active",
             "bg-cyan-900/40",
             "border-cyan-500/50",
             "text-cyan-300",
-          ),
-        );
+          );
+          b.setAttribute("aria-pressed", "false");
+        });
         e.currentTarget.classList.add(
           "active",
           "bg-cyan-900/40",
           "border-cyan-500/50",
           "text-cyan-300",
         );
+        e.currentTarget.setAttribute("aria-pressed", "true");
         this.currentViewMode = parseInt(
           e.currentTarget.getAttribute("data-mode"),
           10,

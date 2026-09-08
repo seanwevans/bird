@@ -1,3 +1,10 @@
+@import "tailwindcss";
+
+/* The HUD builds class strings in JavaScript, so the scanner is pointed at the
+   sources as well as the markup it can find on its own. */
+@source "./index.html";
+@source "./src";
+
 body {
   margin: 0;
   overflow: hidden;
@@ -41,4 +48,21 @@ body {
   position: absolute;
   background: #22d3ee;
   box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+}
+
+/* The HUD is dark and low contrast, so the browser default focus ring is easy
+   to lose. Keyboard users get an explicit one; mouse users still get none. */
+:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

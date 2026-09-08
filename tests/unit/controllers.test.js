@@ -5,13 +5,14 @@ import { HudController } from "../../src/ui/HudController.js";
 describe("controllers", () => {
   beforeEach(() => {
     document.body.innerHTML = `
-      <button id="hud-toggle"></button><span id="hud-chevron"></span>
+      <button id="hud-toggle" aria-expanded="false"></button>
+      <span id="hud-chevron"></span>
       <button id="pause-toggle" aria-pressed="false">Pause</button>
       <div id="hud-panel" class="hidden"></div>
       <input id="opacity-slider" value="0.025">
       <span id="opacity-val"></span>
-      <button class="view-btn active" data-mode="0"></button>
-      <button class="view-btn" data-mode="2"></button>
+      <button class="view-btn active" data-mode="0" aria-pressed="true"></button>
+      <button class="view-btn" data-mode="2" aria-pressed="false"></button>
       <div id="hud-alert" class="opacity-0"></div>
       <div id="velocity-vector"></div>`;
   });
@@ -198,6 +199,25 @@ describe("controllers", () => {
     expect(panel.classList).not.toContain("hidden");
     ui.toggleHudPanel();
     expect(panel.classList).toContain("hidden");
+  });
+
+  it("keeps the toggle and sensor buttons reporting their own state", () => {
+    new HudController();
+    const toggle = document.querySelector("#hud-toggle");
+    const [thermal, velocity] = document.querySelectorAll(".view-btn");
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    toggle.click();
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    toggle.click();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    velocity.click();
+    expect(velocity.getAttribute("aria-pressed")).toBe("true");
+    expect(thermal.getAttribute("aria-pressed")).toBe("false");
+    thermal.click();
+    expect(thermal.getAttribute("aria-pressed")).toBe("true");
+    expect(velocity.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("opens the HUD and dispatches sensor-mode selection", () => {
