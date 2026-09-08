@@ -33,6 +33,36 @@ describe("controllers", () => {
     expect(input.needReset).toBe(true);
   });
 
+  it("maps keyboard pitch and roll to the same signs as the gamepad", () => {
+    const keyboard = new InputController();
+    Object.assign(keyboard.keys, { w: true, a: true, q: true });
+    keyboard.applyKeyboard();
+
+    const gamepad = new InputController();
+    const buttons = Array.from({ length: 10 }, () => ({
+      value: 0,
+      pressed: false,
+    }));
+    buttons[4].pressed = true; // left bumper: yaw left
+    // Left stick pushed forward and to the left.
+    gamepad.applyGamepad({ axes: [-1, -1, 0, 0], buttons });
+
+    // W pitches the nose down, A rolls left, Q yaws left.
+    expect(keyboard.pitch).toBe(1);
+    expect(keyboard.roll).toBe(-1);
+    expect(keyboard.yaw).toBe(1);
+    expect(keyboard.pitch).toBe(gamepad.pitch);
+    expect(keyboard.roll).toBe(gamepad.roll);
+    expect(keyboard.yaw).toBe(gamepad.yaw);
+
+    const opposite = new InputController();
+    Object.assign(opposite.keys, { s: true, d: true, e: true });
+    opposite.applyKeyboard();
+    expect(opposite.pitch).toBe(-1);
+    expect(opposite.roll).toBe(1);
+    expect(opposite.yaw).toBe(-1);
+  });
+
   it("changes keyboard throttle at the same rate for different frame times", () => {
     const atThirtyFps = new InputController();
     const atOneTwentyFps = new InputController();
