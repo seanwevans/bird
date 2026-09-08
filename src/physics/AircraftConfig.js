@@ -17,6 +17,8 @@ export const AIRCRAFT_CONFIG = Object.freeze({
   sideForceSlope: 0.8,
   gearDragCoefficient: 0.08,
   stallAngle: 15,
+  /** Throttle at which the afterburner lights; it reaches full plume at 1. */
+  afterburnerThreshold: 0.85,
   referenceDynamicPressure: 3500,
   pitchMoment: 1000,
   rollMoment: 1800,

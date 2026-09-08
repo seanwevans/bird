@@ -13,6 +13,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Real-time 3D rendering with Three.js
 - Airspeed, altitude, vertical speed, Mach, angle of attack, G-load, stall,
   throttle, and landing gear HUD readouts
+- Twin afterburner plumes with shock diamonds above the throttle detent
 - Thermal, laminar, velocity, and X-ray sensor views
 - Adjustable wind visualization
 - Keyboard and gamepad support
@@ -63,6 +64,17 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | B / Circle or Start  | Reset the aircraft           |
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
+
+## Afterburner
+
+Past the throttle detent in `AircraftConfig.js` (85% by default) the engines
+light two exhaust plumes, each a bright core inside a longer outer cone with
+drifting shock diamonds. The plume brightens and stretches with throttle and
+spools rather than snapping on. It is purely visual: thrust is unchanged.
+
+The plume colours are linear RGB triples rather than hex literals because
+Three.js colour management converts hex through sRGB, which would darken them
+before they reach the shader.
 
 ## Aerodynamic model and units
 
