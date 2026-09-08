@@ -1,7 +1,6 @@
-import { FlightSimulator } from "./app/FlightSimulator.js";
+import * as CANNON from "cannon-es";
+import * as THREE from "three";
 
-const { THREE, CANNON } = window;
-if (!THREE || !CANNON)
-  throw new Error("Three.js and Cannon.js must be loaded before the simulator");
+import { FlightSimulator } from "./app/FlightSimulator.js";
 
 new FlightSimulator({ THREE, CANNON, window, document }).animate();

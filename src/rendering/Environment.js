@@ -1,23 +1,47 @@
+import { createSeededRandom } from "../utils/Random.js";
+
+export const CITY_CONFIG = Object.freeze({
+  seed: 20240517,
+  blockCount: 1000,
+  blockHeight: 100,
+  blockWidth: 20,
+  spread: 4000,
+});
+
 export class Environment {
-  constructor(scene, physicsWorld, physicsMaterial, { THREE, CANNON }) {
+  constructor(
+    scene,
+    physicsWorld,
+    physicsMaterial,
+    { THREE, CANNON, random, city = CITY_CONFIG },
+  ) {
     this.THREE = THREE;
     this.CANNON = CANNON;
     this.scene = scene;
     this.world = physicsWorld;
     this.physicsMaterial = physicsMaterial;
+    this.city = city;
+    // Seeded by default so the skyline — and therefore every collision with
+    // it — replays identically from one run to the next.
+    this.random = random ?? createSeededRandom(city.seed);
     this.buildLighting();
     this.buildGround();
     this.buildCity();
   }
   buildLighting() {
-    this.scene.background = new this.THREE.Color(0x5dade2);
-    this.scene.add(new this.THREE.AmbientLight(0xffffff, 0.7));
+    // Three.js dropped the legacy lighting mode in r155: punctual light
+    // intensity is no longer scaled by PI inside the shader, so the values
+    // tuned against the old renderer are carried over multiplied by it.
+    const legacy = (intensity) => intensity * Math.PI;
 
-    const dirLight = new this.THREE.DirectionalLight(0xffffff, 1.2);
+    this.scene.background = new this.THREE.Color(0x5dade2);
+    this.scene.add(new this.THREE.AmbientLight(0xffffff, legacy(0.7)));
+
+    const dirLight = new this.THREE.DirectionalLight(0xffffff, legacy(1.2));
     dirLight.position.set(200, 500, 300);
     this.scene.add(dirLight);
 
-    const fillLight = new this.THREE.DirectionalLight(0x5dade2, 0.5);
+    const fillLight = new this.THREE.DirectionalLight(0x5dade2, legacy(0.5));
     fillLight.position.set(-100, -50, -100);
     this.scene.add(fillLight);
   }
@@ -58,24 +82,40 @@ export class Environment {
     gridHelper.material.opacity = 0.5;
     this.scene.add(gridHelper);
   }
-  buildCity(height = 100) {
-    const blockGeo = new this.THREE.BoxGeometry(20, height, 20);
+  buildCity({ blockCount, blockHeight, blockWidth, spread } = this.city) {
+    const blockGeo = new this.THREE.BoxGeometry(
+      blockWidth,
+      blockHeight,
+      blockWidth,
+    );
     const blockMat = new this.THREE.MeshStandardMaterial({
       color: 0xdddddd,
       roughness: 0.8,
     });
     const blockShape = new this.CANNON.Box(
-      new this.CANNON.Vec3(10, height / 2, 10),
+      new this.CANNON.Vec3(blockWidth / 2, blockHeight / 2, blockWidth / 2),
     );
 
-    for (let i = 0; i < 1000; i++) {
-      const x = (Math.random() - 0.5) * 4000;
-      const y = 50;
-      const z = (Math.random() - 0.5) * 4000;
+    // Every block shares one geometry and material, so they draw as a single
+    // instanced mesh instead of a thousand separate draw calls per frame.
+    this.cityBlocks = new this.THREE.InstancedMesh(
+      blockGeo,
+      blockMat,
+      blockCount,
+    );
+    // Frustum culling tests the geometry's bounding sphere, which describes a
+    // single block at the origin rather than the 4 km field the instances are
+    // spread over, so the whole city would blink out whenever that one block
+    // left the view. One draw call is cheap enough to always submit.
+    this.cityBlocks.frustumCulled = false;
+    const transform = new this.THREE.Matrix4();
 
-      const block = new this.THREE.Mesh(blockGeo, blockMat);
-      block.position.set(x, y, z);
-      this.scene.add(block);
+    for (let i = 0; i < blockCount; i++) {
+      const x = (this.random() - 0.5) * spread;
+      const y = blockHeight / 2;
+      const z = (this.random() - 0.5) * spread;
+
+      this.cityBlocks.setMatrixAt(i, transform.makeTranslation(x, y, z));
 
       const blockBody = new this.CANNON.Body({
         mass: 0,
@@ -86,5 +126,8 @@ export class Environment {
       blockBody.isBuilding = true;
       this.world.addBody(blockBody);
     }
+
+    this.cityBlocks.instanceMatrix.needsUpdate = true;
+    this.scene.add(this.cityBlocks);
   }
 }

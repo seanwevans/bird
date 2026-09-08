@@ -10,13 +10,11 @@ export default [
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
-        CANNON: "readonly",
         CustomEvent: "readonly",
         document: "readonly",
         navigator: "readonly",
         process: "readonly",
         requestAnimationFrame: "readonly",
-        THREE: "readonly",
         window: "readonly",
       },
     },
