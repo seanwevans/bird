@@ -4,7 +4,7 @@
 
 A browser-based 3D flight simulator that combines real-time physics, aerodynamic visualization, and a responsive heads-up display. Fly with a keyboard or gamepad while switching between sensor views to see the forces around the aircraft.
 
-![Aerodynamics Flight Simulator in action](https://github.com/user-attachments/assets/2f570027-c112-42c7-bbc6-29b65b869714)
+![Aerodynamics Flight Simulator in action](https://github.com/user-attachments/assets/58373aa6-1fe2-415d-8721-1ae3643a8a21)
 
 ## Features
 
