@@ -44,6 +44,31 @@ const THREE = {
       Object.assign(this, { x, y, z });
       return this;
     }
+    compose(position) {
+      Object.assign(this, position);
+      return this;
+    }
+  },
+  Quaternion: class {
+    setFromAxisAngle() {
+      return this;
+    }
+  },
+  Vector3: class {
+    constructor(x = 0, y = 0, z = 0) {
+      Object.assign(this, { x, y, z });
+    }
+    set(x, y, z) {
+      Object.assign(this, { x, y, z });
+    }
+  },
+  Group: class {
+    constructor() {
+      Object.assign(this, node(), { children: [] });
+    }
+    add(child) {
+      this.children.push(child);
+    }
   },
   InstancedMesh: class {
     constructor(geometry, material, count) {
@@ -141,6 +166,15 @@ describe("environment", () => {
     expect(
       environment.cityBlocks.matrices.map(({ x, y, z }) => [x, y, z]),
     ).toEqual(buildingPositions(world));
+  });
+
+  it("keeps buildings off the runway and its approach", () => {
+    const { environment, world } = build({
+      city: { ...CITY_CONFIG, blockCount: 400 },
+    });
+
+    for (const [x, , z] of buildingPositions(world))
+      expect(environment.runway.obstructs({ x, z })).toBe(false);
   });
 
   it("follows an injected generator so scenarios can vary the skyline", () => {

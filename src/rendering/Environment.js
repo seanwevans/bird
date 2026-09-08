@@ -1,4 +1,7 @@
 import { createSeededRandom } from "../utils/Random.js";
+import { Runway } from "./Runway.js";
+
+export const GROUND_Y = -2;
 
 export const CITY_CONFIG = Object.freeze({
   seed: 20240517,
@@ -26,6 +29,7 @@ export class Environment {
     this.random = random ?? createSeededRandom(city.seed);
     this.buildLighting();
     this.buildGround();
+    this.buildRunway();
     this.buildCity();
   }
   buildLighting() {
@@ -55,7 +59,7 @@ export class Environment {
       groundMat,
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -2;
+    ground.position.y = GROUND_Y;
     this.scene.add(ground);
 
     const groundBody = new this.CANNON.Body({
@@ -67,7 +71,7 @@ export class Environment {
       new this.CANNON.Vec3(1, 0, 0),
       -Math.PI / 2,
     );
-    groundBody.position.set(0, -2, 0);
+    groundBody.position.set(0, GROUND_Y, 0);
     groundBody.isGround = true;
     this.world.addBody(groundBody);
 
@@ -81,6 +85,25 @@ export class Environment {
     gridHelper.material.transparent = true;
     gridHelper.material.opacity = 0.5;
     this.scene.add(gridHelper);
+  }
+  buildRunway() {
+    this.runway = new Runway(this.scene, {
+      THREE: this.THREE,
+      groundY: GROUND_Y,
+    });
+  }
+  /** Draw a site for one block, rerolling any that would land on the runway or
+   * its approach. The generator is seeded, so this stays deterministic. */
+  pickBlockSite(spread, attempts = 8) {
+    let site;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      site = {
+        x: (this.random() - 0.5) * spread,
+        z: (this.random() - 0.5) * spread,
+      };
+      if (!this.runway?.obstructs(site)) return site;
+    }
+    return site;
   }
   buildCity({ blockCount, blockHeight, blockWidth, spread } = this.city) {
     const blockGeo = new this.THREE.BoxGeometry(
@@ -111,9 +134,8 @@ export class Environment {
     const transform = new this.THREE.Matrix4();
 
     for (let i = 0; i < blockCount; i++) {
-      const x = (this.random() - 0.5) * spread;
+      const { x, z } = this.pickBlockSite(spread);
       const y = blockHeight / 2;
-      const z = (this.random() - 0.5) * spread;
 
       this.cityBlocks.setMatrixAt(i, transform.makeTranslation(x, y, z));
 
