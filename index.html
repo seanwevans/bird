@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aerodynamics Flight Simulator</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css" />
   </head>
 
@@ -14,6 +13,7 @@
 
     <div
       id="hud-center"
+      aria-hidden="true"
       class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 pointer-events-none z-10 overflow-hidden rounded-full border border-cyan-500/10"
     >
       <div
@@ -127,6 +127,9 @@
       <div class="flex items-center gap-2 mb-2">
         <button
           id="hud-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="hud-panel"
           class="bg-slate-800/80 hover:bg-slate-700 text-cyan-400 text-xs font-bold py-1.5 px-3 rounded border border-cyan-500/30 shadow-lg pointer-events-auto transition-all backdrop-blur-md flex items-center gap-2"
         >
           <svg
@@ -148,6 +151,7 @@
 
         <div
           id="controller-status"
+          role="status"
           class="bg-slate-800/80 text-[10px] font-bold py-1.5 px-3 rounded border border-slate-500/30 shadow-lg text-slate-400 uppercase tracking-tighter"
         >
           Gamepad: Disconnected
@@ -223,7 +227,7 @@
               <div
                 class="flex justify-between text-xs mb-1 text-gray-300 font-sans"
               >
-                <span>Wind Opacity</span>
+                <span id="opacity-label">Wind Opacity</span>
 
                 <span id="opacity-val">2.5%</span>
               </div>
@@ -231,6 +235,7 @@
               <input
                 type="range"
                 id="opacity-slider"
+                aria-labelledby="opacity-label"
                 min="0.0"
                 max="1.0"
                 step="0.005"
@@ -240,13 +245,20 @@
             </div>
 
             <div
+              id="sensor-view-label"
               class="text-[10px] text-gray-500 uppercase tracking-widest mb-2"
             >
               Sensor View
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
+            <div
+              role="group"
+              aria-labelledby="sensor-view-label"
+              class="grid grid-cols-2 gap-2"
+            >
               <button
+                type="button"
+                aria-pressed="true"
                 class="view-btn active bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
                 data-mode="0"
               >
@@ -254,6 +266,8 @@
               </button>
 
               <button
+                type="button"
+                aria-pressed="false"
                 class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
                 data-mode="1"
               >
@@ -261,6 +275,8 @@
               </button>
 
               <button
+                type="button"
+                aria-pressed="false"
                 class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
                 data-mode="2"
               >
@@ -268,6 +284,8 @@
               </button>
 
               <button
+                type="button"
+                aria-pressed="false"
                 class="view-btn bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs py-1.5 rounded border border-slate-600 transition-all"
                 data-mode="3"
               >

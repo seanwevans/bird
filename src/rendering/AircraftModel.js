@@ -7,6 +7,16 @@ import { AIRCRAFT_CONFIG } from "../physics/AircraftConfig.js";
 import { Afterburner } from "./Afterburner.js";
 import { ShaderUtils } from "./ShaderUtils.js";
 
+/** Main and nose wheels. `contactWindow` is how long after the last ground
+ * contact the wheels are still treated as rolling, and `freewheelDecay` is the
+ * per-60Hz-frame factor they spin down by once airborne. */
+export const WHEEL_CONFIG = Object.freeze({
+  radius: 0.32,
+  width: 0.24,
+  contactWindow: 0.15,
+  freewheelDecay: 0.99,
+});
+
 export class AircraftModel {
   constructor(
     scene,
@@ -27,6 +37,10 @@ export class AircraftModel {
     this.simulatedMach = 0;
     this.afterburnerLevel = 0;
     this.flightData = { angleOfAttack: 0, gLoad: 0, stall: false };
+    this.wheels = [];
+    this.wheelRate = 0;
+    this.forwardSpeed = 0;
+    this.groundContactAge = Infinity;
 
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
@@ -331,12 +345,20 @@ export class AircraftModel {
     );
     strut.position.set(0, -0.28, 0);
     const wheel = new this.THREE.Mesh(
-      new this.THREE.CylinderGeometry(0.32, 0.32, 0.24, 16),
+      new this.THREE.CylinderGeometry(
+        WHEEL_CONFIG.radius,
+        WHEEL_CONFIG.radius,
+        WHEEL_CONFIG.width,
+        16,
+      ),
       tireMat,
     );
+    // Euler XYZ applies z first, laying the axle across the aircraft, so the
+    // roll animation belongs on x — rotating y here would steer, not spin.
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(0, -0.55, 0);
     pivot.add(strut, wheel);
+    this.wheels.push(wheel);
     return pivot;
   }
   buildPhysics(physicsMaterial) {
@@ -378,6 +400,7 @@ export class AircraftModel {
         return;
       }
       if (e.body.isGround) {
+        this.groundContactAge = 0;
         const jetUp = new this.CANNON.Vec3(0, 1, 0);
         this.jetBody.quaternion.vmult(jetUp, jetUp);
         const dotUp = jetUp.dot(new this.CANNON.Vec3(0, 1, 0));
@@ -423,6 +446,7 @@ export class AircraftModel {
     this.jetBody.torque.z += localTorque.z;
 
     this.simulatedMach = forces.mach;
+    this.forwardSpeed = localVelocity.z;
     this.flightData = forces;
     this.heatUniforms.windSpeed.value = this.simulatedMach;
   }
@@ -458,6 +482,8 @@ export class AircraftModel {
       burnerAlpha;
     this.afterburner.update(this.afterburnerLevel, deltaTime);
 
+    this.updateWheels(input, deltaTime);
+
     // Landing Gear
     const targetRot = input.gearDown ? 0 : -Math.PI / 2;
     this.noseGearPivot.rotation.x +=
@@ -468,7 +494,26 @@ export class AircraftModel {
     this.rightGearPivot.rotation.z +=
       (targetRot - this.rightGearPivot.rotation.z) * gearAlpha;
   }
+  /** Spin the wheels at ground speed while they are on the runway, then let
+   * them free-wheel down once the aircraft lifts off. */
+  updateWheels(input, deltaTime) {
+    this.groundContactAge += deltaTime;
+    const rolling =
+      input.gearDown && this.groundContactAge < WHEEL_CONFIG.contactWindow;
+
+    if (rolling) this.wheelRate = this.forwardSpeed / WHEEL_CONFIG.radius;
+    else
+      this.wheelRate *= Math.pow(WHEEL_CONFIG.freewheelDecay, deltaTime * 60);
+
+    // The axle lies across the aircraft, so a positive roll about x carries the
+    // top of the wheel forward, which is the direction it turns rolling ahead.
+    for (const wheel of this.wheels)
+      wheel.rotation.x += this.wheelRate * deltaTime;
+  }
   reset() {
+    this.wheelRate = 0;
+    this.groundContactAge = Infinity;
+    for (const wheel of this.wheels) wheel.rotation.x = 0;
     this.jetBody.position.set(0, AIRCRAFT_CONFIG.initialAltitude, 0);
     this.jetBody.velocity.set(0, 0, AIRCRAFT_CONFIG.initialSpeed);
     this.jetBody.angularVelocity.set(0, 0, 0);

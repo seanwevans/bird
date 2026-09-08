@@ -15,6 +15,8 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
   throttle, and landing gear HUD readouts
 - Twin afterburner plumes with shock diamonds above the throttle detent
 - Thermal, laminar, velocity, and X-ray sensor views
+- A marked runway north of the city to fly approaches to, with gear wheels
+  that spin up on touchdown and free-wheel down after lift-off
 - Adjustable wind visualization
 - Keyboard and gamepad support
 
@@ -34,8 +36,12 @@ Three.js and Cannon are pinned in `package.json` and bundled by Vite. They are
 passed into `FlightSimulator` from `src/main.js`, so every module still receives
 them by injection and stays testable with stand-ins.
 
-> Tailwind CSS is still loaded from a CDN, so an internet connection is required
-> for the HUD styling.
+Tailwind is compiled at build time by `@tailwindcss/vite` from `style.css`,
+which points the scanner at `index.html` and `src` — the HUD assembles some
+class strings in JavaScript, and those files have to be scanned for the
+utilities to be emitted.
+
+The page makes no external requests, so the simulator runs offline.
 
 Run all formatting, lint, unit-test, and production-build checks with:
 
@@ -71,6 +77,12 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 Keyboard and gamepad are read together every frame, so a connected controller
 sitting at rest never takes the keyboard out of the loop.
 
+The HUD controls carry their own state for assistive technology: the HUD button
+reports `aria-expanded`, the sensor buttons report `aria-pressed`, the gamepad
+line is a live region, and the on-screen reticle is hidden from screen readers
+because it repeats the panel readouts. Keyboard focus draws a cyan ring, and the
+UI transitions collapse under `prefers-reduced-motion`.
+
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
 
 ## Afterburner
@@ -83,6 +95,27 @@ spools rather than snapping on. It is purely visual: thrust is unchanged.
 The plume colours are linear RGB triples rather than hex literals because
 Three.js colour management converts hex through sRGB, which would darken them
 before they reach the shader.
+
+## Landing
+
+The runway is laid out along the spawn heading, starting just past the northern
+edge of the city, so flying straight ahead from a reset brings it into view. It
+is scenery rather than its own collision surface — the ground body already spans
+the world — and `RUNWAY_CONFIG` in `Runway.js` holds its size and markings.
+
+Buildings are kept off the paving and out of the approach corridor leading up to
+the near threshold: `buildCity` rerolls any site the runway reports as
+obstructing, which keeps the city deterministic because the generator is seeded.
+
+Touching down with the gear up, or with the gear down above 12 m/s of closing
+speed or banked past about 37 degrees, still counts as a crash. Below that the
+aircraft rolls out.
+
+The gear wheels turn at ground speed while they are on the paving and
+free-wheel down once airborne. Their materials are lifted clear of the ground
+plane and carry a polygon offset as well: at kilometre range the depth buffer
+resolves in metres, and a lift small enough to be invisible is not enough on its
+own to keep the paving in front of the ground.
 
 ## Aerodynamic model and units
 
