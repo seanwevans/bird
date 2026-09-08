@@ -1,3 +1,10 @@
+@import "tailwindcss";
+
+/* The HUD builds class strings in JavaScript, so the scanner is pointed at the
+   sources as well as the markup it can find on its own. */
+@source "./index.html";
+@source "./src";
+
 body {
   margin: 0;
   overflow: hidden;
