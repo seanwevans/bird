@@ -1,10 +1,29 @@
+import { createSeededRandom } from "../utils/Random.js";
+
+export const CITY_CONFIG = Object.freeze({
+  seed: 20240517,
+  blockCount: 1000,
+  blockHeight: 100,
+  blockWidth: 20,
+  spread: 4000,
+});
+
 export class Environment {
-  constructor(scene, physicsWorld, physicsMaterial, { THREE, CANNON }) {
+  constructor(
+    scene,
+    physicsWorld,
+    physicsMaterial,
+    { THREE, CANNON, random, city = CITY_CONFIG },
+  ) {
     this.THREE = THREE;
     this.CANNON = CANNON;
     this.scene = scene;
     this.world = physicsWorld;
     this.physicsMaterial = physicsMaterial;
+    this.city = city;
+    // Seeded by default so the skyline — and therefore every collision with
+    // it — replays identically from one run to the next.
+    this.random = random ?? createSeededRandom(city.seed);
     this.buildLighting();
     this.buildGround();
     this.buildCity();
@@ -58,20 +77,24 @@ export class Environment {
     gridHelper.material.opacity = 0.5;
     this.scene.add(gridHelper);
   }
-  buildCity(height = 100) {
-    const blockGeo = new this.THREE.BoxGeometry(20, height, 20);
+  buildCity({ blockCount, blockHeight, blockWidth, spread } = this.city) {
+    const blockGeo = new this.THREE.BoxGeometry(
+      blockWidth,
+      blockHeight,
+      blockWidth,
+    );
     const blockMat = new this.THREE.MeshStandardMaterial({
       color: 0xdddddd,
       roughness: 0.8,
     });
     const blockShape = new this.CANNON.Box(
-      new this.CANNON.Vec3(10, height / 2, 10),
+      new this.CANNON.Vec3(blockWidth / 2, blockHeight / 2, blockWidth / 2),
     );
 
-    for (let i = 0; i < 1000; i++) {
-      const x = (Math.random() - 0.5) * 4000;
-      const y = 50;
-      const z = (Math.random() - 0.5) * 4000;
+    for (let i = 0; i < blockCount; i++) {
+      const x = (this.random() - 0.5) * spread;
+      const y = blockHeight / 2;
+      const z = (this.random() - 0.5) * spread;
 
       const block = new this.THREE.Mesh(blockGeo, blockMat);
       block.position.set(x, y, z);
