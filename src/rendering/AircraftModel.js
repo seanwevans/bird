@@ -74,44 +74,46 @@ export class AircraftModel {
     cockpit.position.set(0, 1.2, 3);
     this.jetGroup.add(cockpit);
 
-    const rightWing = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(8, 0.2, 4),
-      this.fuselageMat,
-    );
-    rightWing.position.set(4, 0, -1);
-    rightWing.rotation.y = Math.PI / 6;
-    this.jetGroup.add(rightWing);
-
+    // The body frame is z forward and y up in a right-handed world, so +x
+    // points out the left wing and -x out the right wing.
     const leftWing = new this.THREE.Mesh(
       new this.THREE.BoxGeometry(8, 0.2, 4),
       this.fuselageMat,
     );
-    leftWing.position.set(-4, 0, -1);
-    leftWing.rotation.y = -Math.PI / 6;
+    leftWing.position.set(4, 0, -1);
+    leftWing.rotation.y = Math.PI / 6;
     this.jetGroup.add(leftWing);
 
-    // Control Surfaces
-    this.rightElevon = new this.THREE.Group();
-    this.rightElevon.position.set(1.5, 0, -4.5);
-    const rightTail = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(4, 0.1, 2),
+    const rightWing = new this.THREE.Mesh(
+      new this.THREE.BoxGeometry(8, 0.2, 4),
       this.fuselageMat,
     );
-    rightTail.position.set(1.5, 0, 0);
-    rightTail.rotation.y = Math.PI / 8;
-    this.rightElevon.add(rightTail);
-    this.jetGroup.add(this.rightElevon);
+    rightWing.position.set(-4, 0, -1);
+    rightWing.rotation.y = -Math.PI / 6;
+    this.jetGroup.add(rightWing);
 
+    // Control Surfaces
     this.leftElevon = new this.THREE.Group();
-    this.leftElevon.position.set(-1.5, 0, -4.5);
+    this.leftElevon.position.set(1.5, 0, -4.5);
     const leftTail = new this.THREE.Mesh(
       new this.THREE.BoxGeometry(4, 0.1, 2),
       this.fuselageMat,
     );
-    leftTail.position.set(-1.5, 0, 0);
-    leftTail.rotation.y = -Math.PI / 8;
+    leftTail.position.set(1.5, 0, 0);
+    leftTail.rotation.y = Math.PI / 8;
     this.leftElevon.add(leftTail);
     this.jetGroup.add(this.leftElevon);
+
+    this.rightElevon = new this.THREE.Group();
+    this.rightElevon.position.set(-1.5, 0, -4.5);
+    const rightTail = new this.THREE.Mesh(
+      new this.THREE.BoxGeometry(4, 0.1, 2),
+      this.fuselageMat,
+    );
+    rightTail.position.set(-1.5, 0, 0);
+    rightTail.rotation.y = -Math.PI / 8;
+    this.rightElevon.add(rightTail);
+    this.jetGroup.add(this.rightElevon);
 
     this.rudderGroup = new this.THREE.Group();
     this.rudderGroup.position.set(0, 1.2, -4.5);
@@ -137,8 +139,8 @@ export class AircraftModel {
     });
 
     this.noseGearPivot = this.createGearPivot(0, -1.0, 6, gearMat, tireMat);
-    this.leftGearPivot = this.createGearPivot(-2, -1.0, -1, gearMat, tireMat);
-    this.rightGearPivot = this.createGearPivot(2, -1.0, -1, gearMat, tireMat);
+    this.leftGearPivot = this.createGearPivot(2, -1.0, -1, gearMat, tireMat);
+    this.rightGearPivot = this.createGearPivot(-2, -1.0, -1, gearMat, tireMat);
 
     this.jetGroup.add(
       this.noseGearPivot,
@@ -255,17 +257,20 @@ export class AircraftModel {
     this.jetGroup.position.copy(this.jetBody.position);
     this.jetGroup.quaternion.copy(this.jetBody.quaternion);
 
-    // Control Surfaces
-    const targetRightElevon = (input.pitch + input.roll) * 0.6;
-    const targetLeftElevon = (input.pitch - input.roll) * 0.6;
-    const targetRudder = input.yaw * 0.5;
+    // Control Surfaces. Deflections follow the commanded motion: a trailing
+    // edge up (positive rotation.x) pitches the nose up, and a rudder trailing
+    // edge to the left (positive rotation.y) yaws the nose left, so both are
+    // the opposite sign to the nose-down pitch and nose-left yaw inputs.
+    const targetLeftElevon = -(input.pitch + input.roll) * 0.6;
+    const targetRightElevon = -(input.pitch - input.roll) * 0.6;
+    const targetRudder = -input.yaw * 0.5;
 
     const controlAlpha = 1 - Math.pow(1 - 0.2, deltaTime * 60);
     const gearAlpha = 1 - Math.pow(1 - 0.1, deltaTime * 60);
-    this.rightElevon.rotation.x +=
-      (targetRightElevon - this.rightElevon.rotation.x) * controlAlpha;
     this.leftElevon.rotation.x +=
       (targetLeftElevon - this.leftElevon.rotation.x) * controlAlpha;
+    this.rightElevon.rotation.x +=
+      (targetRightElevon - this.rightElevon.rotation.x) * controlAlpha;
     this.rudderGroup.rotation.y +=
       (targetRudder - this.rudderGroup.rotation.y) * controlAlpha;
 
@@ -274,10 +279,10 @@ export class AircraftModel {
     this.noseGearPivot.rotation.x +=
       (targetRot - this.noseGearPivot.rotation.x) * gearAlpha;
     this.leftGearPivot.rotation.z +=
-      (targetRot - this.leftGearPivot.rotation.z) * gearAlpha;
-    this.rightGearPivot.rotation.z +=
-      ((input.gearDown ? 0 : Math.PI / 2) - this.rightGearPivot.rotation.z) *
+      ((input.gearDown ? 0 : Math.PI / 2) - this.leftGearPivot.rotation.z) *
       gearAlpha;
+    this.rightGearPivot.rotation.z +=
+      (targetRot - this.rightGearPivot.rotation.z) * gearAlpha;
   }
   reset() {
     this.jetBody.position.set(0, AIRCRAFT_CONFIG.initialAltitude, 0);

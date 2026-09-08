@@ -11,7 +11,8 @@ describe("controllers", () => {
       <input id="opacity-slider" value="0.025">
       <span id="opacity-val"></span>
       <button class="view-btn active" data-mode="0"></button>
-      <button class="view-btn" data-mode="2"></button>`;
+      <button class="view-btn" data-mode="2"></button>
+      <div id="velocity-vector"></div>`;
   });
 
   it("applies gamepad deadzones and edge-triggers buttons", () => {
@@ -74,6 +75,54 @@ describe("controllers", () => {
 
     expect(atThirtyFps.throttle).toBeCloseTo(0.4, 10);
     expect(atOneTwentyFps.throttle).toBeCloseTo(0.4, 10);
+  });
+
+  it("draws the flight path marker on the side the aircraft is sliding toward", () => {
+    // Minimal identity-rotation stand-ins: the body already reports its
+    // velocity in aircraft-local axes.
+    const CANNON = {
+      Quaternion: class {
+        vmult(vector, target) {
+          return Object.assign(target, {
+            x: vector.x,
+            y: vector.y,
+            z: vector.z,
+          });
+        }
+      },
+      Vec3: class {
+        constructor(x = 0, y = 0, z = 0) {
+          Object.assign(this, { x, y, z });
+        }
+      },
+    };
+    const bodyWith = (velocity) => ({
+      quaternion: { inverse: (target) => target },
+      velocity,
+    });
+    // The element is offset by `translate(calc(-50% + Xpx), calc(-50% - Ypx))`,
+    // so a positive X draws the marker right of centre and a positive Y above.
+    const offsets = () => {
+      const [x, y] = document
+        .querySelector("#velocity-vector")
+        .style.transform.match(/-?\d+(?:\.\d+)?(?=px)/g)
+        .map(Number);
+      return { x, y };
+    };
+
+    const ui = new HudController({ CANNON });
+
+    // +x points out the left wing, so this is a slide to the left and the
+    // marker belongs left of centre.
+    ui.updateVelocityVector(bodyWith(new CANNON.Vec3(10, 0, 100)));
+    expect(offsets().x).toBeLessThan(0);
+
+    ui.updateVelocityVector(bodyWith(new CANNON.Vec3(-10, 0, 100)));
+    expect(offsets().x).toBeGreaterThan(0);
+
+    // Climbing relative to the airframe puts the marker above centre.
+    ui.updateVelocityVector(bodyWith(new CANNON.Vec3(0, 10, 100)));
+    expect(offsets().y).toBeGreaterThan(0);
   });
 
   it("opens the HUD and dispatches sensor-mode selection", () => {
