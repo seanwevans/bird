@@ -168,6 +168,15 @@ describe("environment", () => {
     ).toEqual(buildingPositions(world));
   });
 
+  it("keeps buildings off the runway and its approach", () => {
+    const { environment, world } = build({
+      city: { ...CITY_CONFIG, blockCount: 400 },
+    });
+
+    for (const [x, , z] of buildingPositions(world))
+      expect(environment.runway.obstructs({ x, z })).toBe(false);
+  });
+
   it("follows an injected generator so scenarios can vary the skyline", () => {
     const { world } = build({ city: smallCity, random: () => 0.75 });
 

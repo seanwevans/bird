@@ -81,6 +81,10 @@ edge of the city, so flying straight ahead from a reset brings it into view. It
 is scenery rather than its own collision surface — the ground body already spans
 the world — and `RUNWAY_CONFIG` in `Runway.js` holds its size and markings.
 
+Buildings are kept off the paving and out of the approach corridor leading up to
+the near threshold: `buildCity` rerolls any site the runway reports as
+obstructing, which keeps the city deterministic because the generator is seeded.
+
 Touching down with the gear up, or with the gear down above 12 m/s of closing
 speed or banked past about 37 degrees, still counts as a crash. Below that the
 aircraft rolls out.

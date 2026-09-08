@@ -16,6 +16,10 @@ export const RUNWAY_CONFIG = Object.freeze({
   thresholdBars: 8,
   thresholdBarLength: 45,
   thresholdInset: 20,
+  /** Buildings are kept out of this margin around the paving, and out of the
+   * approach corridor leading up to the near threshold. */
+  clearanceMargin: 120,
+  approachLength: 900,
   surfaceColor: 0x2f3336,
   markingColor: 0xf2f2f2,
 });
@@ -167,5 +171,18 @@ export class Runway {
   contains({ x, z }) {
     const { width, length, centerZ } = this.config;
     return Math.abs(x) <= width / 2 && Math.abs(z - centerZ) <= length / 2;
+  }
+
+  /** True where scenery would obstruct the runway or the approach to it. */
+  obstructs({ x, z }) {
+    const { width, length, centerZ, clearanceMargin, approachLength } =
+      this.config;
+    const near = centerZ - length / 2;
+    const far = centerZ + length / 2;
+    return (
+      Math.abs(x) <= width / 2 + clearanceMargin &&
+      z >= near - approachLength &&
+      z <= far + clearanceMargin
+    );
   }
 }

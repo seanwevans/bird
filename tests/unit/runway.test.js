@@ -135,6 +135,26 @@ describe("Runway", () => {
     expect(runway.centerline.frustumCulled).toBe(false);
   });
 
+  it("claims a clearance margin and an approach corridor", () => {
+    const { runway } = build();
+    const { centerZ, width, length, clearanceMargin, approachLength } =
+      RUNWAY_CONFIG;
+    const near = centerZ - length / 2;
+
+    // Just off the edge and short of the threshold: still the runway's air.
+    expect(runway.obstructs({ x: width / 2 + 10, z: centerZ })).toBe(true);
+    expect(runway.obstructs({ x: 0, z: near - approachLength + 10 })).toBe(
+      true,
+    );
+    // Well beside it, and behind the approach, is fair game for scenery.
+    expect(
+      runway.obstructs({ x: width / 2 + clearanceMargin + 10, z: centerZ }),
+    ).toBe(false);
+    expect(runway.obstructs({ x: 0, z: near - approachLength - 10 })).toBe(
+      false,
+    );
+  });
+
   it("reports whether a position is over the paving", () => {
     const { runway } = build();
     const { centerZ, width, length } = RUNWAY_CONFIG;

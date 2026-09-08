@@ -92,6 +92,19 @@ export class Environment {
       groundY: GROUND_Y,
     });
   }
+  /** Draw a site for one block, rerolling any that would land on the runway or
+   * its approach. The generator is seeded, so this stays deterministic. */
+  pickBlockSite(spread, attempts = 8) {
+    let site;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      site = {
+        x: (this.random() - 0.5) * spread,
+        z: (this.random() - 0.5) * spread,
+      };
+      if (!this.runway?.obstructs(site)) return site;
+    }
+    return site;
+  }
   buildCity({ blockCount, blockHeight, blockWidth, spread } = this.city) {
     const blockGeo = new this.THREE.BoxGeometry(
       blockWidth,
@@ -121,9 +134,8 @@ export class Environment {
     const transform = new this.THREE.Matrix4();
 
     for (let i = 0; i < blockCount; i++) {
-      const x = (this.random() - 0.5) * spread;
+      const { x, z } = this.pickBlockSite(spread);
       const y = blockHeight / 2;
-      const z = (this.random() - 0.5) * spread;
 
       this.cityBlocks.setMatrixAt(i, transform.makeTranslation(x, y, z));
 
