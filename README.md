@@ -62,6 +62,9 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | A / Cross            | Toggle landing gear          |
 | B / Circle or Start  | Reset the aircraft           |
 
+Keyboard and gamepad are read together every frame, so a connected controller
+sitting at rest never takes the keyboard out of the loop.
+
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
 
 ## Aerodynamic model and units
