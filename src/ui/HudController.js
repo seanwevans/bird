@@ -50,13 +50,15 @@ export class HudController {
     this.dom.pauseButton.textContent = paused ? "Resume" : "Pause";
     this.dom.pauseButton.setAttribute("aria-pressed", String(paused));
   }
+  toggleHudPanel() {
+    if (!this.dom.hudPanel || !this.dom.hudChevron) return;
+    const open = this.dom.hudPanel.classList.toggle("hidden") === false;
+    this.dom.hudChevron.classList.toggle("rotate-180");
+    this.dom.hudToggle?.setAttribute("aria-expanded", String(open));
+  }
+
   bindEvents() {
-    if (this.dom.hudToggle && this.dom.hudPanel && this.dom.hudChevron) {
-      this.dom.hudToggle.addEventListener("click", () => {
-        this.dom.hudPanel.classList.toggle("hidden");
-        this.dom.hudChevron.classList.toggle("rotate-180");
-      });
-    }
+    this.dom.hudToggle?.addEventListener("click", () => this.toggleHudPanel());
 
     if (this.dom.opacitySlider && this.dom.opacityValDisplay) {
       this.dom.opacitySlider.addEventListener("input", (e) => {
@@ -69,20 +71,22 @@ export class HudController {
 
     this.dom.viewBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
-        this.dom.viewBtns.forEach((b) =>
+        this.dom.viewBtns.forEach((b) => {
           b.classList.remove(
             "active",
             "bg-cyan-900/40",
             "border-cyan-500/50",
             "text-cyan-300",
-          ),
-        );
+          );
+          b.setAttribute("aria-pressed", "false");
+        });
         e.currentTarget.classList.add(
           "active",
           "bg-cyan-900/40",
           "border-cyan-500/50",
           "text-cyan-300",
         );
+        e.currentTarget.setAttribute("aria-pressed", "true");
         this.currentViewMode = parseInt(
           e.currentTarget.getAttribute("data-mode"),
           10,

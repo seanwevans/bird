@@ -70,6 +70,12 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 Keyboard and gamepad are read together every frame, so a connected controller
 sitting at rest never takes the keyboard out of the loop.
 
+The HUD controls carry their own state for assistive technology: the HUD button
+reports `aria-expanded`, the sensor buttons report `aria-pressed`, the gamepad
+line is a live region, and the on-screen reticle is hidden from screen readers
+because it repeats the panel readouts. Keyboard focus draws a cyan ring, and the
+UI transitions collapse under `prefers-reduced-motion`.
+
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
 
 ## Aerodynamic model and units
