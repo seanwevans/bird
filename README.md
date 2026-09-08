@@ -35,8 +35,12 @@ Three.js and Cannon are pinned in `package.json` and bundled by Vite. They are
 passed into `FlightSimulator` from `src/main.js`, so every module still receives
 them by injection and stays testable with stand-ins.
 
-> Tailwind CSS is still loaded from a CDN, so an internet connection is required
-> for the HUD styling.
+Tailwind is compiled at build time by `@tailwindcss/vite` from `style.css`,
+which points the scanner at `index.html` and `src` — the HUD assembles some
+class strings in JavaScript, and those files have to be scanned for the
+utilities to be emitted.
+
+The page makes no external requests, so the simulator runs offline.
 
 Run all formatting, lint, unit-test, and production-build checks with:
 
