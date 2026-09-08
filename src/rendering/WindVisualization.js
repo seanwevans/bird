@@ -58,7 +58,10 @@ export class WindVisualization {
     const material = new this.THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.6,
+      // update() sets this from airspeed and the slider on every frame it
+      // runs. Starting at zero keeps the streaks from being drawn at full
+      // strength before the first one, which is what the start screen sees.
+      opacity: 0,
       blending: this.THREE.AdditiveBlending,
       depthWrite: false,
     });
