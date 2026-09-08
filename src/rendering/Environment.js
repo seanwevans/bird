@@ -91,14 +91,26 @@ export class Environment {
       new this.CANNON.Vec3(blockWidth / 2, blockHeight / 2, blockWidth / 2),
     );
 
+    // Every block shares one geometry and material, so they draw as a single
+    // instanced mesh instead of a thousand separate draw calls per frame.
+    this.cityBlocks = new this.THREE.InstancedMesh(
+      blockGeo,
+      blockMat,
+      blockCount,
+    );
+    // Frustum culling tests the geometry's bounding sphere, which describes a
+    // single block at the origin rather than the 4 km field the instances are
+    // spread over, so the whole city would blink out whenever that one block
+    // left the view. One draw call is cheap enough to always submit.
+    this.cityBlocks.frustumCulled = false;
+    const transform = new this.THREE.Matrix4();
+
     for (let i = 0; i < blockCount; i++) {
       const x = (this.random() - 0.5) * spread;
       const y = blockHeight / 2;
       const z = (this.random() - 0.5) * spread;
 
-      const block = new this.THREE.Mesh(blockGeo, blockMat);
-      block.position.set(x, y, z);
-      this.scene.add(block);
+      this.cityBlocks.setMatrixAt(i, transform.makeTranslation(x, y, z));
 
       const blockBody = new this.CANNON.Body({
         mass: 0,
@@ -109,5 +121,8 @@ export class Environment {
       blockBody.isBuilding = true;
       this.world.addBody(blockBody);
     }
+
+    this.cityBlocks.instanceMatrix.needsUpdate = true;
+    this.scene.add(this.cityBlocks);
   }
 }

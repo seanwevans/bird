@@ -39,6 +39,22 @@ const THREE = {
       Object.assign(this, node(), { material: {} });
     }
   },
+  Matrix4: class {
+    makeTranslation(x, y, z) {
+      Object.assign(this, { x, y, z });
+      return this;
+    }
+  },
+  InstancedMesh: class {
+    constructor(geometry, material, count) {
+      Object.assign(this, { geometry, material, count }, node());
+      this.matrices = [];
+      this.instanceMatrix = { needsUpdate: false };
+    }
+    setMatrixAt(index, matrix) {
+      this.matrices[index] = { ...matrix };
+    }
+  },
 };
 
 const CANNON = {
@@ -107,6 +123,24 @@ describe("environment", () => {
     expect(buildingPositions(first.world)).toEqual(
       buildingPositions(second.world),
     );
+  });
+
+  it("draws every block from one instanced mesh", () => {
+    const { environment, scene, world } = build({ city: smallCity });
+
+    const meshes = scene.objects.filter(
+      (object) => object instanceof THREE.InstancedMesh,
+    );
+    expect(meshes).toEqual([environment.cityBlocks]);
+    expect(environment.cityBlocks.count).toBe(smallCity.blockCount);
+    expect(environment.cityBlocks.instanceMatrix.needsUpdate).toBe(true);
+    // The instances sit far outside the base geometry's bounding sphere.
+    expect(environment.cityBlocks.frustumCulled).toBe(false);
+
+    // Each instance is placed at the same spot as its collision body.
+    expect(
+      environment.cityBlocks.matrices.map(({ x, y, z }) => [x, y, z]),
+    ).toEqual(buildingPositions(world));
   });
 
   it("follows an injected generator so scenarios can vary the skyline", () => {
