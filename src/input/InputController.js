@@ -68,10 +68,12 @@ export class InputController {
       this.throttle = Math.min(1, this.throttle + throttleChange);
     if (this.keys.Control)
       this.throttle = Math.max(0, this.throttle - throttleChange);
-    if (this.keys.w) this.pitch = -1;
-    if (this.keys.s) this.pitch = 1;
-    if (this.keys.a) this.roll = 1;
-    if (this.keys.d) this.roll = -1;
+    // Signs match the gamepad mapping: positive pitch is nose down, positive
+    // roll is right wing down, and positive yaw is nose left.
+    if (this.keys.w) this.pitch = 1;
+    if (this.keys.s) this.pitch = -1;
+    if (this.keys.a) this.roll = -1;
+    if (this.keys.d) this.roll = 1;
     if (this.keys.q) this.yaw = 1;
     if (this.keys.e) this.yaw = -1;
   }
