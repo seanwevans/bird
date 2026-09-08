@@ -80,6 +80,10 @@ left wing. Dynamic pressure is `q = 1/2 rho V²`, with density following an
 exponential atmosphere (`rho = 1.225 exp(-altitude / 8500)`). Mach uses a
 constant 343 m/s speed of sound.
 
+The skyline is generated from a seeded generator in `Random.js`, so the city —
+and every collision with it — is the same on every load. Pass a `random`
+function or a `city` override to `Environment` to vary it.
+
 Lift and profile drag coefficients are linearly interpolated from the tables in
 `AircraftConfig.js`. Lift falls after the configured 15-degree stall angle;
 induced drag is proportional to lift coefficient squared. Deployed gear adds
