@@ -14,6 +14,8 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Airspeed, altitude, vertical speed, Mach, angle of attack, G-load, stall,
   throttle, and landing gear HUD readouts
 - Thermal, laminar, velocity, and X-ray sensor views
+- A marked runway north of the city to fly approaches to, with gear wheels
+  that spin up on touchdown and free-wheel down after lift-off
 - Adjustable wind visualization
 - Keyboard and gamepad support
 
@@ -63,6 +65,23 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | B / Circle or Start  | Reset the aircraft           |
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
+
+## Landing
+
+The runway is laid out along the spawn heading, starting just past the northern
+edge of the city, so flying straight ahead from a reset brings it into view. It
+is scenery rather than its own collision surface — the ground body already spans
+the world — and `RUNWAY_CONFIG` in `Runway.js` holds its size and markings.
+
+Touching down with the gear up, or with the gear down above 12 m/s of closing
+speed or banked past about 37 degrees, still counts as a crash. Below that the
+aircraft rolls out.
+
+The gear wheels turn at ground speed while they are on the paving and
+free-wheel down once airborne. Their materials are lifted clear of the ground
+plane and carry a polygon offset as well: at kilometre range the depth buffer
+resolves in metres, and a lift small enough to be invisible is not enough on its
+own to keep the paving in front of the ground.
 
 ## Aerodynamic model and units
 

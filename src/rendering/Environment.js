@@ -1,3 +1,7 @@
+import { Runway } from "./Runway.js";
+
+export const GROUND_Y = -2;
+
 export class Environment {
   constructor(scene, physicsWorld, physicsMaterial, { THREE, CANNON }) {
     this.THREE = THREE;
@@ -7,17 +11,23 @@ export class Environment {
     this.physicsMaterial = physicsMaterial;
     this.buildLighting();
     this.buildGround();
+    this.buildRunway();
     this.buildCity();
   }
   buildLighting() {
-    this.scene.background = new this.THREE.Color(0x5dade2);
-    this.scene.add(new this.THREE.AmbientLight(0xffffff, 0.7));
+    // Three.js dropped the legacy lighting mode in r155: punctual light
+    // intensity is no longer scaled by PI inside the shader, so the values
+    // tuned against the old renderer are carried over multiplied by it.
+    const legacy = (intensity) => intensity * Math.PI;
 
-    const dirLight = new this.THREE.DirectionalLight(0xffffff, 1.2);
+    this.scene.background = new this.THREE.Color(0x5dade2);
+    this.scene.add(new this.THREE.AmbientLight(0xffffff, legacy(0.7)));
+
+    const dirLight = new this.THREE.DirectionalLight(0xffffff, legacy(1.2));
     dirLight.position.set(200, 500, 300);
     this.scene.add(dirLight);
 
-    const fillLight = new this.THREE.DirectionalLight(0x5dade2, 0.5);
+    const fillLight = new this.THREE.DirectionalLight(0x5dade2, legacy(0.5));
     fillLight.position.set(-100, -50, -100);
     this.scene.add(fillLight);
   }
@@ -31,7 +41,7 @@ export class Environment {
       groundMat,
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -2;
+    ground.position.y = GROUND_Y;
     this.scene.add(ground);
 
     const groundBody = new this.CANNON.Body({
@@ -43,7 +53,7 @@ export class Environment {
       new this.CANNON.Vec3(1, 0, 0),
       -Math.PI / 2,
     );
-    groundBody.position.set(0, -2, 0);
+    groundBody.position.set(0, GROUND_Y, 0);
     groundBody.isGround = true;
     this.world.addBody(groundBody);
 
@@ -57,6 +67,12 @@ export class Environment {
     gridHelper.material.transparent = true;
     gridHelper.material.opacity = 0.5;
     this.scene.add(gridHelper);
+  }
+  buildRunway() {
+    this.runway = new Runway(this.scene, {
+      THREE: this.THREE,
+      groundY: GROUND_Y,
+    });
   }
   buildCity(height = 100) {
     const blockGeo = new this.THREE.BoxGeometry(20, height, 20);
