@@ -12,6 +12,7 @@ describe("controllers", () => {
       <span id="opacity-val"></span>
       <button class="view-btn active" data-mode="0"></button>
       <button class="view-btn" data-mode="2"></button>
+      <div id="hud-alert" class="opacity-0"></div>
       <div id="velocity-vector"></div>`;
   });
 
@@ -154,6 +155,49 @@ describe("controllers", () => {
     // Climbing relative to the airframe puts the marker above centre.
     ui.updateVelocityVector(bodyWith(new CANNON.Vec3(0, 10, 100)));
     expect(offsets().y).toBeGreaterThan(0);
+  });
+
+  it("raises one-shot requests from the shortcut keys", () => {
+    const input = new InputController();
+    const press = (key, repeat = false) =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, repeat }));
+
+    press("p");
+    press("h");
+    press("R");
+    expect(input.takeRequest("pauseToggleRequested")).toBe(true);
+    // Taking a request clears it, so one press cannot pause twice.
+    expect(input.takeRequest("pauseToggleRequested")).toBe(false);
+    expect(input.takeRequest("hudToggleRequested")).toBe(true);
+    expect(input.needReset).toBe(true);
+
+    // Holding a key down must not fire the action every repeat.
+    press("p", true);
+    expect(input.takeRequest("pauseToggleRequested")).toBe(false);
+  });
+
+  it("flashes an alert and fades it after its duration", () => {
+    const ui = new HudController();
+    const alert = document.querySelector("#hud-alert");
+
+    ui.showAlert("AIRFRAME LOST", 2);
+    expect(alert.innerText).toBe("AIRFRAME LOST");
+    expect(alert.classList).not.toContain("opacity-0");
+
+    ui.updateAlert(1);
+    expect(alert.classList).not.toContain("opacity-0");
+    ui.updateAlert(1.5);
+    expect(alert.classList).toContain("opacity-0");
+  });
+
+  it("toggles the HUD panel from the button and from a shortcut alike", () => {
+    const ui = new HudController();
+    const panel = document.querySelector("#hud-panel");
+
+    document.querySelector("#hud-toggle").click();
+    expect(panel.classList).not.toContain("hidden");
+    ui.toggleHudPanel();
+    expect(panel.classList).toContain("hidden");
   });
 
   it("opens the HUD and dispatches sensor-mode selection", () => {
