@@ -1,5 +1,10 @@
-import { calculateFlightForces, clamp } from "../physics/AircraftDynamics.js";
+import {
+  afterburnerIntensity,
+  calculateFlightForces,
+  clamp,
+} from "../physics/AircraftDynamics.js";
 import { AIRCRAFT_CONFIG } from "../physics/AircraftConfig.js";
+import { Afterburner } from "./Afterburner.js";
 import { ShaderUtils } from "./ShaderUtils.js";
 
 /** Main and nose wheels. `contactWindow` is how long after the last ground
@@ -30,6 +35,7 @@ export class AircraftModel {
     this.jetGroup = new this.THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
     this.simulatedMach = 0;
+    this.afterburnerLevel = 0;
     this.flightData = { angleOfAttack: 0, gLoad: 0, stall: false };
     this.wheels = [];
     this.wheelRate = 0;
@@ -76,6 +82,7 @@ export class AircraftModel {
     this.buildWings();
     this.buildTail();
     this.buildGear();
+    this.afterburner = new Afterburner(this.jetGroup, { THREE: this.THREE });
     this.scene.add(this.jetGroup);
   }
   /** Extrude a flat outline into a slab. Points are [across, along] pairs; the
@@ -466,6 +473,14 @@ export class AircraftModel {
       (targetRightElevon - this.rightElevon.rotation.x) * controlAlpha;
     for (const rudder of this.rudders)
       rudder.rotation.y += (targetRudder - rudder.rotation.y) * controlAlpha;
+
+    // Afterburner. The plume spools rather than snapping on, so easing the
+    // level is part of the look and not just frame smoothing.
+    const burnerAlpha = 1 - Math.pow(1 - 0.08, deltaTime * 60);
+    this.afterburnerLevel +=
+      (afterburnerIntensity(input.throttle) - this.afterburnerLevel) *
+      burnerAlpha;
+    this.afterburner.update(this.afterburnerLevel, deltaTime);
 
     this.updateWheels(input, deltaTime);
 

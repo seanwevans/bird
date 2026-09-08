@@ -3,6 +3,15 @@ import { AIRCRAFT_CONFIG } from "./AircraftConfig.js";
 export const clamp = (value, minimum = 0, maximum = 1) =>
   Math.min(maximum, Math.max(minimum, value));
 
+/** Plume strength from 0 at the afterburner threshold to 1 at full throttle. */
+export function afterburnerIntensity(throttle, config = AIRCRAFT_CONFIG) {
+  const { afterburnerThreshold } = config;
+  if (afterburnerThreshold >= 1) return clamp(throttle) >= 1 ? 1 : 0;
+  return clamp(
+    (clamp(throttle) - afterburnerThreshold) / (1 - afterburnerThreshold),
+  );
+}
+
 export function interpolateCurve(curve, value) {
   if (value <= curve[0][0]) return curve[0][1];
   for (let index = 1; index < curve.length; index++) {
