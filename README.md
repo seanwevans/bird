@@ -71,9 +71,12 @@ The physics model uses SI units internally: metres (m), seconds (s), kilograms
 `UnitConversions.js`; the deliberately rounded prototype display uses 2 knots
 per m/s, 3 feet per metre, and 180 feet/minute per m/s.
 
-Velocity is transformed into aircraft-local coordinates where **X is right, Y
-is up, and Z is forward**. Angle of attack and sideslip are derived from that
-velocity. Dynamic pressure is `q = 1/2 rho V²`, with density following an
+Velocity is transformed into aircraft-local coordinates where **Z is forward, Y
+is up, and X completes the right-handed frame by pointing out the left wing**
+(Three.js and Cannon.js are right-handed, so a nose along `+z` with `+y` up puts
+the right wing on `-x`). Angle of attack and sideslip are derived from that
+velocity; positive sideslip means the airflow is pushing the aircraft toward its
+left wing. Dynamic pressure is `q = 1/2 rho V²`, with density following an
 exponential atmosphere (`rho = 1.225 exp(-altitude / 8500)`). Mach uses a
 constant 343 m/s speed of sound.
 

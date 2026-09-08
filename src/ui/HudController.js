@@ -174,7 +174,9 @@ export class HudController {
     invQuat.vmult(jetBody.velocity, localVel);
 
     if (localVel.z > 0.1) {
-      const yawOffset = Math.atan2(localVel.x, localVel.z) * 350;
+      // +x points out the left wing, so the marker moves right on screen only
+      // when the airflow pushes the aircraft toward -x.
+      const yawOffset = Math.atan2(-localVel.x, localVel.z) * 350;
       const pitchOffset = Math.atan2(localVel.y, localVel.z) * 350;
       const cx = Math.max(-180, Math.min(180, yawOffset));
       const cy = Math.max(-180, Math.min(180, pitchOffset));
@@ -189,7 +191,8 @@ export class HudController {
     const jetFwd = new this.THREE.Vector3(0, 0, 1).applyQuaternion(
       jetGroup.quaternion,
     );
-    const jetRight = new this.THREE.Vector3(1, 0, 0).applyQuaternion(
+    // +x points out the left wing in this body frame (z forward, y up).
+    const jetLeft = new this.THREE.Vector3(1, 0, 0).applyQuaternion(
       jetGroup.quaternion,
     );
     const jetUp = new this.THREE.Vector3(0, 1, 0).applyQuaternion(
@@ -197,7 +200,8 @@ export class HudController {
     );
 
     const pitchAngle = Math.asin(jetFwd.y);
-    const rollAngle = Math.atan2(jetRight.y, jetUp.y);
+    // Positive when rolling right, which lifts the left wing.
+    const rollAngle = Math.atan2(jetLeft.y, jetUp.y);
     const pitchOffset = Math.max(-150, Math.min(150, pitchAngle * 250));
 
     this.dom.horizonTransform.style.transform = `rotate(${-rollAngle}rad) translateY(${pitchOffset}px)`;

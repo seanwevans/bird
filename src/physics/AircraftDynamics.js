@@ -19,8 +19,9 @@ export const airDensityAtAltitude = (altitude, config = AIRCRAFT_CONFIG) =>
   config.seaLevelDensity *
   Math.exp(-Math.max(0, altitude) / config.densityScaleHeight);
 
-/** Calculate deterministic aerodynamic forces in aircraft-local axes (x right,
- * y up, z forward). Velocity is in m/s and altitude is metres above sea level.
+/** Calculate deterministic aerodynamic forces in aircraft-local axes (z
+ * forward, y up, and x completing the right-handed frame out the left wing).
+ * Velocity is in m/s and altitude is metres above sea level.
  */
 export function calculateFlightForces(
   localVelocity,
