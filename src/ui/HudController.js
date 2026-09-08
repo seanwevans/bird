@@ -4,8 +4,8 @@ export class HudController {
   constructor({
     document = globalThis.document,
     eventTarget = globalThis.window,
-    THREE = globalThis.THREE,
-    CANNON = globalThis.CANNON,
+    THREE,
+    CANNON,
   } = {}) {
     this.document = document;
     this.eventTarget = eventTarget;

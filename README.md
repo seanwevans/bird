@@ -21,7 +21,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 
 ## Development
 
-Install the pinned development dependencies and start Vite:
+Install the pinned dependencies and start Vite:
 
 ```bash
 npm ci
@@ -31,7 +31,12 @@ npm run dev
 Vite prints the local URL to open in a modern browser. The simulator remains a
 static application and the production output can be generated with `npm run build`.
 
-> The simulator loads Tailwind CSS, Three.js, and Cannon.js from CDNs, so an internet connection is required.
+Three.js and Cannon are pinned in `package.json` and bundled by Vite. They are
+passed into `FlightSimulator` from `src/main.js`, so every module still receives
+them by injection and stays testable with stand-ins.
+
+> Tailwind CSS is still loaded from a CDN, so an internet connection is required
+> for the HUD styling.
 
 Run all formatting, lint, unit-test, and production-build checks with:
 
@@ -63,6 +68,9 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | Left / right trigger | Decrease / increase throttle |
 | A / Cross            | Toggle landing gear          |
 | B / Circle or Start  | Reset the aircraft           |
+
+Keyboard and gamepad are read together every frame, so a connected controller
+sitting at rest never takes the keyboard out of the loop.
 
 Use the **HUD** button to open flight data and visualization controls. Choose a sensor view or adjust wind opacity while you fly.
 
@@ -98,6 +106,10 @@ velocity; positive sideslip means the airflow is pushing the aircraft toward its
 left wing. Dynamic pressure is `q = 1/2 rho V²`, with density following an
 exponential atmosphere (`rho = 1.225 exp(-altitude / 8500)`). Mach uses a
 constant 343 m/s speed of sound.
+
+The skyline is generated from a seeded generator in `Random.js`, so the city —
+and every collision with it — is the same on every load. Pass a `random`
+function or a `city` override to `Environment` to vary it.
 
 Lift and profile drag coefficients are linearly interpolated from the tables in
 `AircraftConfig.js`. Lift falls after the configured 15-degree stall angle;
