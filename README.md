@@ -19,7 +19,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 
 ## Development
 
-Install the pinned development dependencies and start Vite:
+Install the pinned dependencies and start Vite:
 
 ```bash
 npm ci
@@ -29,7 +29,12 @@ npm run dev
 Vite prints the local URL to open in a modern browser. The simulator remains a
 static application and the production output can be generated with `npm run build`.
 
-> The simulator loads Tailwind CSS, Three.js, and Cannon.js from CDNs, so an internet connection is required.
+Three.js and Cannon are pinned in `package.json` and bundled by Vite. They are
+passed into `FlightSimulator` from `src/main.js`, so every module still receives
+them by injection and stays testable with stand-ins.
+
+> Tailwind CSS is still loaded from a CDN, so an internet connection is required
+> for the HUD styling.
 
 Run all formatting, lint, unit-test, and production-build checks with:
 

@@ -29,14 +29,19 @@ export class Environment {
     this.buildCity();
   }
   buildLighting() {
-    this.scene.background = new this.THREE.Color(0x5dade2);
-    this.scene.add(new this.THREE.AmbientLight(0xffffff, 0.7));
+    // Three.js dropped the legacy lighting mode in r155: punctual light
+    // intensity is no longer scaled by PI inside the shader, so the values
+    // tuned against the old renderer are carried over multiplied by it.
+    const legacy = (intensity) => intensity * Math.PI;
 
-    const dirLight = new this.THREE.DirectionalLight(0xffffff, 1.2);
+    this.scene.background = new this.THREE.Color(0x5dade2);
+    this.scene.add(new this.THREE.AmbientLight(0xffffff, legacy(0.7)));
+
+    const dirLight = new this.THREE.DirectionalLight(0xffffff, legacy(1.2));
     dirLight.position.set(200, 500, 300);
     this.scene.add(dirLight);
 
-    const fillLight = new this.THREE.DirectionalLight(0x5dade2, 0.5);
+    const fillLight = new this.THREE.DirectionalLight(0x5dade2, legacy(0.5));
     fillLight.position.set(-100, -50, -100);
     this.scene.add(fillLight);
   }
