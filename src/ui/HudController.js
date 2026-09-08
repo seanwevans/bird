@@ -34,7 +34,9 @@ export class HudController {
       controllerStatus: this.document.getElementById("controller-status"),
       hudGear: this.document.getElementById("hud-gear-on-screen"),
       pauseButton: this.document.getElementById("pause-toggle"),
+      alert: this.document.getElementById("hud-alert"),
     };
+    this.alertRemaining = 0;
 
     // Initialize from the slider so the wind matches the value shown in the
     // UI (2.5%) on load instead of starting invisible until the slider moves.
@@ -50,6 +52,20 @@ export class HudController {
     this.dom.pauseButton.textContent = paused ? "Resume" : "Pause";
     this.dom.pauseButton.setAttribute("aria-pressed", String(paused));
   }
+  /** Flash a message across the HUD for a couple of seconds. */
+  showAlert(message, duration = 2.5) {
+    if (!this.dom.alert) return;
+    this.dom.alert.innerText = message;
+    this.dom.alert.classList.remove("opacity-0");
+    this.alertRemaining = duration;
+  }
+
+  updateAlert(deltaTime) {
+    if (!this.dom.alert || this.alertRemaining <= 0) return;
+    this.alertRemaining -= deltaTime;
+    if (this.alertRemaining <= 0) this.dom.alert.classList.add("opacity-0");
+  }
+
   toggleHudPanel() {
     if (!this.dom.hudPanel || !this.dom.hudChevron) return;
     const open = this.dom.hudPanel.classList.toggle("hidden") === false;

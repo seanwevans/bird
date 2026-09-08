@@ -55,11 +55,13 @@ export class FlightSimulator {
       this.physicsMaterial,
       { THREE, CANNON },
     );
+    this.pendingCrash = false;
     this.aircraft = new AircraftModel(
       this.scene,
       this.world,
       this.physicsMaterial,
       () => {
+        this.pendingCrash = true;
         this.input.needReset = true;
       },
       { THREE, CANNON, eventTarget: window },
@@ -123,9 +125,19 @@ export class FlightSimulator {
     this.camera.lookAt(target);
   }
 
+  /** Act on the one-shot key requests. Runs even while paused, so the pause
+   * shortcut can start the simulation again. */
+  applyRequests() {
+    if (this.input.takeRequest("pauseToggleRequested"))
+      this.setPaused(!this.paused);
+    if (this.input.takeRequest("hudToggleRequested")) this.ui.toggleHudPanel();
+  }
+
   update(deltaTime = this.fixedTimeStep) {
     const safeDelta = Math.max(0, Math.min(deltaTime, this.maxFrameDelta));
+    this.applyRequests();
     if (this.paused || this.document.hidden) {
+      this.ui.updateAlert(safeDelta);
       this.rendererSystem.render();
       return;
     }
@@ -133,7 +145,10 @@ export class FlightSimulator {
     if (this.input.needReset) {
       this.aircraft.reset();
       this.input.reset();
+      this.ui.showAlert(this.pendingCrash ? "AIRFRAME LOST" : "RESET");
+      this.pendingCrash = false;
     }
+    this.ui.updateAlert(safeDelta);
     this.world.step(this.fixedTimeStep, safeDelta, this.maxSubSteps);
     this.aircraft.updateAnimations(this.input, safeDelta);
     const body = this.aircraft.jetBody;

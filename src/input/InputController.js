@@ -28,6 +28,10 @@ export class InputController {
       needReset: false,
       lastGearBtn: false,
       lastResetBtn: false,
+      // One-shot requests raised by a key press and cleared by whoever acts on
+      // them, so the simulator can read them on a frame it is not stepping.
+      pauseToggleRequested: false,
+      hudToggleRequested: false,
     });
     // Backwards-compatible names for callers that tune controller behavior.
     this.GAMEPAD_DEADZONE = GAMEPAD_CONFIG.deadzone;
@@ -40,7 +44,11 @@ export class InputController {
     this.eventTarget?.addEventListener("keydown", (event) => {
       const key = normalizeKey(event.key);
       if (key in this.keys) this.keys[key] = true;
-      if (key === "g" && !event.repeat) this.gearDown = !this.gearDown;
+      if (event.repeat) return;
+      if (key === "g") this.gearDown = !this.gearDown;
+      if (key === "r") this.needReset = true;
+      if (key === "p") this.pauseToggleRequested = true;
+      if (key === "h") this.hudToggleRequested = true;
     });
     this.eventTarget?.addEventListener("keyup", (event) => {
       const key = normalizeKey(event.key);
@@ -100,6 +108,13 @@ export class InputController {
     if (mapped.resetPressed && !this.lastResetBtn) this.needReset = true;
     this.lastGearBtn = mapped.gearPressed;
     this.lastResetBtn = mapped.resetPressed;
+  }
+
+  /** Read a one-shot request and clear it in the same step. */
+  takeRequest(name) {
+    const requested = this[name];
+    this[name] = false;
+    return requested;
   }
 
   reset() {

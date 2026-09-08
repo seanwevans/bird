@@ -62,6 +62,9 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | `Q` / `E`           | Yaw left / right             |
 | `Shift` / `Control` | Increase / decrease throttle |
 | `G`                 | Toggle landing gear          |
+| `P`                 | Pause / resume               |
+| `R`                 | Reset the aircraft           |
+| `H`                 | Show / hide the HUD panel    |
 
 ### Gamepad
 
@@ -73,6 +76,10 @@ Browser smoke tests use Playwright and run separately with `npm run test:e2e`.
 | Left / right trigger | Decrease / increase throttle |
 | A / Cross            | Toggle landing gear          |
 | B / Circle or Start  | Reset the aircraft           |
+
+Resetting — whether from `R`, the gamepad, or a crash — flashes a message
+across the HUD, so a building strike reads as a crash rather than an unexplained
+teleport back to the start.
 
 Keyboard and gamepad are read together every frame, so a connected controller
 sitting at rest never takes the keyboard out of the loop.
