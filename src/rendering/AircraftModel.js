@@ -1,4 +1,4 @@
-import { calculateFlightForces } from "../physics/AircraftDynamics.js";
+import { calculateFlightForces, clamp } from "../physics/AircraftDynamics.js";
 import { AIRCRAFT_CONFIG } from "../physics/AircraftConfig.js";
 import { ShaderUtils } from "./ShaderUtils.js";
 
@@ -28,12 +28,11 @@ export class AircraftModel {
     // Listen for UI view mode changes to toggle wireframe
     this.eventTarget?.addEventListener("viewModeChanged", (e) => {
       const isWireframe = e.detail === 3;
-      this.fuselageMat.wireframe = isWireframe;
-      this.fuselageMat.transparent = isWireframe;
-      this.fuselageMat.opacity = isWireframe ? 0.2 : 1.0;
-      this.cockpitMat.wireframe = isWireframe;
-      this.cockpitMat.transparent = isWireframe;
-      this.cockpitMat.opacity = isWireframe ? 0.2 : 1.0;
+      for (const material of this.shellMats) {
+        material.wireframe = isWireframe;
+        material.transparent = isWireframe;
+        material.opacity = isWireframe ? 0.2 : 1.0;
+      }
     });
   }
   buildMeshes() {
@@ -47,86 +46,248 @@ export class AircraftModel {
       roughness: 0.1,
       metalness: 0.8,
     });
+    // Intake mouths and nozzles stay off the thermal shader so they read as
+    // dark openings in every sensor view.
+    this.apertureMat = new this.THREE.MeshStandardMaterial({
+      color: 0x14181c,
+      roughness: 0.9,
+      metalness: 0.2,
+    });
 
-    ShaderUtils.applyThermalShader(this.fuselageMat, this.heatUniforms);
-    ShaderUtils.applyThermalShader(this.cockpitMat, this.heatUniforms);
+    this.shellMats = [this.fuselageMat, this.cockpitMat];
+    for (const material of this.shellMats)
+      ShaderUtils.applyThermalShader(material, this.heatUniforms);
 
-    const fuselage = new this.THREE.Mesh(
-      new this.THREE.CylinderGeometry(1.2, 1.2, 10, 32),
+    this.buildBody();
+    this.buildWings();
+    this.buildTail();
+    this.buildGear();
+    this.scene.add(this.jetGroup);
+  }
+  /** Extrude a flat outline into a slab. Points are [across, along] pairs; the
+   * slab is thickened along the remaining axis and centred on the origin. */
+  createPanel(points, thickness, material, bevel = 0) {
+    const shape = new this.THREE.Shape();
+    shape.moveTo(...points[0]);
+    for (const point of points.slice(1)) shape.lineTo(...point);
+    shape.closePath();
+    return new this.THREE.Mesh(
+      new this.THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: bevel > 0,
+        bevelThickness: bevel,
+        bevelSize: bevel,
+        bevelOffset: 0,
+        bevelSegments: 1,
+      }),
+      material,
+    );
+  }
+  /** Lay a panel flat at a given vertical centre: points are [x, z forward]. */
+  addFlatPanel(points, thickness, centreY, material, bevel = 0) {
+    const panel = this.createPanel(points, thickness, material, bevel);
+    panel.rotation.x = Math.PI / 2;
+    panel.position.y = centreY + thickness / 2;
+    this.jetGroup.add(panel);
+    return panel;
+  }
+  /** Stand a panel on edge: outline points read as [z forward, y up]. */
+  createUprightPanel(points, thickness, material, bevel = 0) {
+    const panel = this.createPanel(points, thickness, material, bevel);
+    panel.rotation.y = -Math.PI / 2;
+    panel.position.x = thickness / 2;
+    return panel;
+  }
+  buildBody() {
+    // Faceted radome: a four sided pyramid gives the diamond cross section and
+    // the horizontal chine edges that define the forward fuselage.
+    const radome = new this.THREE.Mesh(
+      new this.THREE.ConeGeometry(0.95, 4.6, 4),
       this.fuselageMat,
     );
-    fuselage.rotation.x = Math.PI / 2;
-    this.jetGroup.add(fuselage);
+    radome.rotation.x = Math.PI / 2;
+    radome.position.set(0, 0.05, 6.9);
+    this.jetGroup.add(radome);
 
-    const nose = new this.THREE.Mesh(
-      new this.THREE.ConeGeometry(1.2, 5, 32),
+    // Chined planform widening over the intakes, then parallel sides running
+    // back to the nozzles. The body frame is z forward and y up, so +x is the
+    // left side of the aircraft.
+    this.addFlatPanel(
+      [
+        [0.95, 4.9],
+        [1.4, 3.6],
+        [1.9, 1.8],
+        [2.05, 0],
+        [1.95, -4],
+        [1.6, -7.6],
+        [1.6, -9],
+        [-1.6, -9],
+        [-1.6, -7.6],
+        [-1.95, -4],
+        [-2.05, 0],
+        [-1.9, 1.8],
+        [-1.4, 3.6],
+        [-0.95, 4.9],
+      ],
+      1.7,
+      0,
       this.fuselageMat,
+      0.3,
     );
-    nose.rotation.x = Math.PI / 2;
-    nose.position.z = 7.5;
-    this.jetGroup.add(nose);
 
-    const cockpit = new this.THREE.Mesh(
-      new this.THREE.SphereGeometry(0.9, 32, 16),
+    // Weapons bay keel, deepening the belly through the mid fuselage.
+    this.addFlatPanel(
+      [
+        [1.45, 3],
+        [1.5, -1],
+        [1.3, -5.4],
+        [-1.3, -5.4],
+        [-1.5, -1],
+        [-1.45, 3],
+      ],
+      0.55,
+      -1,
+      this.fuselageMat,
+      0.15,
+    );
+
+    // Dorsal deck behind the canopy, stepped in from the chines.
+    this.addFlatPanel(
+      [
+        [1.05, 4.4],
+        [1.4, 1.6],
+        [1.3, -5.6],
+        [0.9, -8.6],
+        [-0.9, -8.6],
+        [-1.3, -5.6],
+        [-1.4, 1.6],
+        [-1.05, 4.4],
+      ],
+      0.7,
+      1.05,
+      this.fuselageMat,
+      0.2,
+    );
+
+    const canopy = new this.THREE.Mesh(
+      new this.THREE.SphereGeometry(0.85, 32, 16),
       this.cockpitMat,
     );
-    cockpit.scale.set(1, 0.6, 3.0);
-    cockpit.position.set(0, 1.2, 3);
-    this.jetGroup.add(cockpit);
+    canopy.scale.set(1.05, 0.8, 2.5);
+    canopy.position.set(0, 1.15, 3.4);
+    this.jetGroup.add(canopy);
 
-    // The body frame is z forward and y up in a right-handed world, so +x
-    // points out the left wing and -x out the right wing.
-    const leftWing = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(8, 0.2, 4),
+    // Caret intakes, raked outward under the chine and open at the front.
+    for (const side of [1, -1]) {
+      const intake = new this.THREE.Mesh(
+        new this.THREE.BoxGeometry(0.9, 1.4, 4.4),
+        this.fuselageMat,
+      );
+      intake.position.set(side * 1.8, -0.45, 1.6);
+      intake.rotation.z = side * 0.12;
+      this.jetGroup.add(intake);
+
+      const mouth = new this.THREE.Mesh(
+        new this.THREE.BoxGeometry(0.7, 1.1, 0.25),
+        this.apertureMat,
+      );
+      mouth.position.set(side * 1.8, -0.45, 3.75);
+      mouth.rotation.z = side * 0.12;
+      this.jetGroup.add(mouth);
+    }
+
+    // Twin two-dimensional thrust vectoring nozzles.
+    for (const side of [1, -1]) {
+      const nozzle = new this.THREE.Mesh(
+        new this.THREE.BoxGeometry(1.05, 1.05, 1.9),
+        this.fuselageMat,
+      );
+      nozzle.position.set(side * 0.8, -0.05, -9.2);
+      this.jetGroup.add(nozzle);
+
+      const exhaust = new this.THREE.Mesh(
+        new this.THREE.BoxGeometry(0.8, 0.8, 0.3),
+        this.apertureMat,
+      );
+      exhaust.position.set(side * 0.8, -0.05, -10.1);
+      this.jetGroup.add(exhaust);
+    }
+  }
+  buildWings() {
+    // Clipped delta: a 40 degree swept leading edge and a forward swept
+    // trailing edge, with the root tucked inside the chines.
+    this.addFlatPanel(
+      [
+        [1.7, 2.4],
+        [6.9, -2],
+        [6.9, -3.6],
+        [1.7, -6.4],
+        [-1.7, -6.4],
+        [-6.9, -3.6],
+        [-6.9, -2],
+        [-1.7, 2.4],
+      ],
+      0.3,
+      -0.2,
       this.fuselageMat,
+      0.07,
     );
-    leftWing.position.set(4, 0, -1);
-    leftWing.rotation.y = Math.PI / 6;
-    this.jetGroup.add(leftWing);
+  }
+  buildTail() {
+    // All-moving stabilators, hinged at the root so pitch and roll deflect the
+    // whole surface the way the real aircraft does.
+    const stabilators = [
+      ["leftElevon", 1],
+      ["rightElevon", -1],
+    ];
+    for (const [name, side] of stabilators) {
+      const pivot = new this.THREE.Group();
+      pivot.position.set(side * 1.5, -0.1, -7.9);
+      const surface = this.createPanel(
+        [
+          [0, 1.5],
+          [side * 3.1, -0.7],
+          [side * 3.1, -1.8],
+          [0, -1.9],
+        ],
+        0.22,
+        this.fuselageMat,
+        0.05,
+      );
+      surface.rotation.x = Math.PI / 2;
+      surface.position.y = 0.11;
+      pivot.add(surface);
+      this[name] = pivot;
+      this.jetGroup.add(pivot);
+    }
 
-    const rightWing = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(8, 0.2, 4),
-      this.fuselageMat,
-    );
-    rightWing.position.set(-4, 0, -1);
-    rightWing.rotation.y = -Math.PI / 6;
-    this.jetGroup.add(rightWing);
-
-    // Control Surfaces
-    this.leftElevon = new this.THREE.Group();
-    this.leftElevon.position.set(1.5, 0, -4.5);
-    const leftTail = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(4, 0.1, 2),
-      this.fuselageMat,
-    );
-    leftTail.position.set(1.5, 0, 0);
-    leftTail.rotation.y = Math.PI / 8;
-    this.leftElevon.add(leftTail);
-    this.jetGroup.add(this.leftElevon);
-
-    this.rightElevon = new this.THREE.Group();
-    this.rightElevon.position.set(-1.5, 0, -4.5);
-    const rightTail = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(4, 0.1, 2),
-      this.fuselageMat,
-    );
-    rightTail.position.set(-1.5, 0, 0);
-    rightTail.rotation.y = -Math.PI / 8;
-    this.rightElevon.add(rightTail);
-    this.jetGroup.add(this.rightElevon);
-
-    this.rudderGroup = new this.THREE.Group();
-    this.rudderGroup.position.set(0, 1.2, -4.5);
-    const vertTail = new this.THREE.Mesh(
-      new this.THREE.BoxGeometry(0.3, 3.5, 2.5),
-      this.fuselageMat,
-    );
-    vertTail.position.set(0, 1.5, 0);
-    vertTail.rotation.x = -Math.PI / 8;
-    this.rudderGroup.add(vertTail);
-    this.jetGroup.add(this.rudderGroup);
-
-    // Landing Gear
+    // Canted fins. Each one hinges about its own base so the rudders swing
+    // together instead of the tail assembly twisting.
+    this.rudders = [];
+    for (const side of [1, -1]) {
+      const hinge = new this.THREE.Group();
+      hinge.position.set(side * 1.75, 0.6, -5.4);
+      const cant = new this.THREE.Group();
+      cant.rotation.z = -side * 0.47;
+      cant.add(
+        this.createUprightPanel(
+          [
+            [2.3, 0],
+            [0.1, 3.4],
+            [-1.1, 3.4],
+            [-2.3, 0],
+          ],
+          0.2,
+          this.fuselageMat,
+          0.05,
+        ),
+      );
+      hinge.add(cant);
+      this.rudders.push(hinge);
+      this.jetGroup.add(hinge);
+    }
+  }
+  buildGear() {
     const gearMat = new this.THREE.MeshStandardMaterial({
       color: 0x444444,
       roughness: 0.8,
@@ -138,31 +299,36 @@ export class AircraftModel {
       metalness: 0.1,
     });
 
-    this.noseGearPivot = this.createGearPivot(0, -1.0, 6, gearMat, tireMat);
-    this.leftGearPivot = this.createGearPivot(2, -1.0, -1, gearMat, tireMat);
-    this.rightGearPivot = this.createGearPivot(-2, -1.0, -1, gearMat, tireMat);
+    this.noseGearPivot = this.createGearPivot(0, -0.9, 5.2, gearMat, tireMat);
+    this.leftGearPivot = this.createGearPivot(1.9, -0.9, -1, gearMat, tireMat);
+    this.rightGearPivot = this.createGearPivot(
+      -1.9,
+      -0.9,
+      -1,
+      gearMat,
+      tireMat,
+    );
 
     this.jetGroup.add(
       this.noseGearPivot,
       this.leftGearPivot,
       this.rightGearPivot,
     );
-    this.scene.add(this.jetGroup);
   }
   createGearPivot(x, y, z, gearMat, tireMat) {
     const pivot = new this.THREE.Group();
     pivot.position.set(x, y, z);
     const strut = new this.THREE.Mesh(
-      new this.THREE.CylinderGeometry(0.1, 0.1, 0.4),
+      new this.THREE.CylinderGeometry(0.11, 0.11, 0.55),
       gearMat,
     );
-    strut.position.set(0, -0.2, 0);
+    strut.position.set(0, -0.28, 0);
     const wheel = new this.THREE.Mesh(
-      new this.THREE.CylinderGeometry(0.2, 0.2, 0.15, 16),
+      new this.THREE.CylinderGeometry(0.32, 0.32, 0.24, 16),
       tireMat,
     );
     wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(0, -0.4, 0);
+    wheel.position.set(0, -0.55, 0);
     pivot.add(strut, wheel);
     return pivot;
   }
@@ -184,8 +350,8 @@ export class AircraftModel {
       new this.CANNON.Vec3(0, 0, -1),
     );
     this.jetBody.addShape(
-      new this.CANNON.Box(new this.CANNON.Vec3(3, 0.12, 1)),
-      new this.CANNON.Vec3(0, 0.2, -4.5),
+      new this.CANNON.Box(new this.CANNON.Vec3(4.5, 0.12, 1.8)),
+      new this.CANNON.Vec3(0, 0.2, -6.9),
     );
     for (const offset of [
       [0, -1.45, 5],
@@ -261,9 +427,12 @@ export class AircraftModel {
     // edge up (positive rotation.x) pitches the nose up, and a rudder trailing
     // edge to the left (positive rotation.y) yaws the nose left, so both are
     // the opposite sign to the nose-down pitch and nose-left yaw inputs.
-    const targetLeftElevon = -(input.pitch + input.roll) * 0.6;
-    const targetRightElevon = -(input.pitch - input.roll) * 0.6;
-    const targetRudder = -input.yaw * 0.5;
+    // Stabilators travel about 24 degrees, so a combined pitch and roll command
+    // is clamped instead of folding the surface past its stops.
+    const deflect = (command) => clamp(command * 0.3, -0.42, 0.42);
+    const targetLeftElevon = deflect(-(input.pitch + input.roll));
+    const targetRightElevon = deflect(-(input.pitch - input.roll));
+    const targetRudder = -input.yaw * 0.4;
 
     const controlAlpha = 1 - Math.pow(1 - 0.2, deltaTime * 60);
     const gearAlpha = 1 - Math.pow(1 - 0.1, deltaTime * 60);
@@ -271,8 +440,8 @@ export class AircraftModel {
       (targetLeftElevon - this.leftElevon.rotation.x) * controlAlpha;
     this.rightElevon.rotation.x +=
       (targetRightElevon - this.rightElevon.rotation.x) * controlAlpha;
-    this.rudderGroup.rotation.y +=
-      (targetRudder - this.rudderGroup.rotation.y) * controlAlpha;
+    for (const rudder of this.rudders)
+      rudder.rotation.y += (targetRudder - rudder.rotation.y) * controlAlpha;
 
     // Landing Gear
     const targetRot = input.gearDown ? 0 : -Math.PI / 2;
