@@ -64,6 +64,37 @@ describe("controllers", () => {
     expect(opposite.yaw).toBe(-1);
   });
 
+  it("keeps the keyboard live while an idle gamepad is connected", () => {
+    const idle = {
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 10 }, () => ({ value: 0, pressed: false })),
+    };
+    const input = new InputController({
+      navigator: { getGamepads: () => [idle] },
+    });
+    Object.assign(input.keys, { w: true, d: true, q: true });
+    input.update(1 / 60);
+
+    expect(input.pitch).toBe(1);
+    expect(input.roll).toBe(1);
+    expect(input.yaw).toBe(1);
+  });
+
+  it("lets a deflected gamepad axis override the keyboard command", () => {
+    const gamepad = {
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 10 }, () => ({ value: 0, pressed: false })),
+    };
+    const input = new InputController({
+      navigator: { getGamepads: () => [gamepad] },
+    });
+    input.keys.w = true;
+    gamepad.axes[1] = 1; // Left stick pulled back: nose up.
+    input.update(1 / 60);
+
+    expect(input.pitch).toBe(-1);
+  });
+
   it("changes keyboard throttle at the same rate for different frame times", () => {
     const atThirtyFps = new InputController();
     const atOneTwentyFps = new InputController();

@@ -54,12 +54,13 @@ export class InputController {
 
   update(deltaTime = 1 / 60) {
     this.pitch = this.roll = this.yaw = 0;
+    // Both sources are read every frame: a connected but idle gamepad reports
+    // neutral axes, and leaving it in sole control would silently disable the
+    // keyboard for anyone who has a controller plugged in.
+    this.applyKeyboard(deltaTime);
     const gamepad = this.navigator?.getGamepads?.()[0];
     if (gamepad) this.applyGamepad(gamepad);
-    else {
-      this.applyKeyboard(deltaTime);
-      this.lastGearBtn = this.lastResetBtn = false;
-    }
+    else this.lastGearBtn = this.lastResetBtn = false;
   }
 
   applyKeyboard(deltaTime = 1 / 60) {
@@ -84,10 +85,13 @@ export class InputController {
       orbitSensitivity: this.ORBIT_SENSITIVITY,
       orbitPitchLimit: this.ORBIT_PITCH_LIMIT,
     });
+    // A deflected stick or bumper wins; a neutral one leaves the keyboard
+    // command from this frame in place. Throttle is already accumulated from
+    // the current value, so keyboard and trigger adjustments both apply.
     Object.assign(this, {
-      pitch: mapped.pitch,
-      roll: mapped.roll,
-      yaw: mapped.yaw,
+      pitch: mapped.pitch || this.pitch,
+      roll: mapped.roll || this.roll,
+      yaw: mapped.yaw || this.yaw,
       throttle: mapped.throttle,
       orbitYaw: mapped.orbitYaw,
       orbitPitch: mapped.orbitPitch,
