@@ -3,8 +3,8 @@ import {
   calculateFlightForces,
   clamp,
 } from "../physics/AircraftDynamics.js";
-import { AIRCRAFT_CONFIG } from "../physics/AircraftConfig.js";
-import { Afterburner } from "./Afterburner.js";
+import { AFTERBURNER_CONFIG, Afterburner } from "./Afterburner.js";
+import { DEFAULT_AIRFRAME } from "./airframes/index.js";
 import { ShaderUtils } from "./ShaderUtils.js";
 
 /** Main and nose wheels. `contactWindow` is how long after the last ground
@@ -23,7 +23,7 @@ export class AircraftModel {
     physicsWorld,
     physicsMaterial,
     onCrashCallback,
-    { THREE, CANNON, eventTarget = globalThis.window },
+    { THREE, CANNON, eventTarget = globalThis.window, airframe },
   ) {
     this.THREE = THREE;
     this.CANNON = CANNON;
@@ -31,6 +31,8 @@ export class AircraftModel {
     this.scene = scene;
     this.world = physicsWorld;
     this.onCrash = onCrashCallback;
+    this.airframe = airframe ?? DEFAULT_AIRFRAME;
+    this.config = this.airframe.config;
 
     this.jetGroup = new this.THREE.Group();
     this.heatUniforms = { windSpeed: { value: 0.0 } };
@@ -45,14 +47,36 @@ export class AircraftModel {
     this.buildMeshes();
     this.buildPhysics(physicsMaterial);
 
-    // Listen for UI view mode changes to toggle wireframe
-    this.eventTarget?.addEventListener("viewModeChanged", (e) => {
+    // Listen for UI view mode changes to toggle wireframe. Kept on the
+    // instance so swapping aircraft can take the listener back off.
+    this.onViewModeChanged = (e) => {
       const isWireframe = e.detail === 3;
       for (const material of this.shellMats) {
         material.wireframe = isWireframe;
         material.transparent = isWireframe;
         material.opacity = isWireframe ? 0.2 : 1.0;
       }
+    };
+    this.eventTarget?.addEventListener(
+      "viewModeChanged",
+      this.onViewModeChanged,
+    );
+  }
+
+  /** Take this aircraft out of the scene and the physics world. */
+  dispose() {
+    this.eventTarget?.removeEventListener(
+      "viewModeChanged",
+      this.onViewModeChanged,
+    );
+    this.world.removeBody(this.jetBody);
+    this.scene.remove(this.jetGroup);
+    this.jetGroup.traverse?.((node) => {
+      node.geometry?.dispose?.();
+      const materials = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
+      for (const material of materials) material?.dispose?.();
     });
   }
   buildMeshes() {
@@ -78,11 +102,18 @@ export class AircraftModel {
     for (const material of this.shellMats)
       ShaderUtils.applyThermalShader(material, this.heatUniforms);
 
-    this.buildBody();
-    this.buildWings();
-    this.buildTail();
-    this.buildGear();
-    this.afterburner = new Afterburner(this.jetGroup, { THREE: this.THREE });
+    this.airframe.build(this);
+    this.buildStabilators(this.airframe.stabilators);
+    this.buildRudders(this.airframe.rudders);
+    this.buildGear(this.airframe.gear);
+    this.afterburner = new Afterburner(this.jetGroup, {
+      THREE: this.THREE,
+      config: {
+        ...AFTERBURNER_CONFIG,
+        ...this.airframe.afterburner,
+        nozzles: this.airframe.nozzles,
+      },
+    });
     this.scene.add(this.jetGroup);
   }
   /** Extrude a flat outline into a slab. Points are [across, along] pairs; the
@@ -254,61 +285,54 @@ export class AircraftModel {
       0.07,
     );
   }
-  buildTail() {
-    // All-moving stabilators, hinged at the root so pitch and roll deflect the
-    // whole surface the way the real aircraft does.
-    const stabilators = [
+  /** All-moving stabilators, hinged at the root so pitch and roll deflect the
+   * whole surface the way the real aircraft does. The outline is given for the
+   * left side and mirrored for the right. */
+  buildStabilators({ pivot, outline, thickness = 0.22, bevel = 0.05, lift }) {
+    for (const [name, side] of [
       ["leftElevon", 1],
       ["rightElevon", -1],
-    ];
-    for (const [name, side] of stabilators) {
-      const pivot = new this.THREE.Group();
-      pivot.position.set(side * 1.5, -0.1, -7.9);
+    ]) {
+      const hinge = new this.THREE.Group();
+      hinge.position.set(side * pivot[0], pivot[1], pivot[2]);
       const surface = this.createPanel(
-        [
-          [0, 1.5],
-          [side * 3.1, -0.7],
-          [side * 3.1, -1.8],
-          [0, -1.9],
-        ],
-        0.22,
+        outline.map(([across, along]) => [side * across, along]),
+        thickness,
         this.fuselageMat,
-        0.05,
+        bevel,
       );
       surface.rotation.x = Math.PI / 2;
-      surface.position.y = 0.11;
-      pivot.add(surface);
-      this[name] = pivot;
-      this.jetGroup.add(pivot);
+      surface.position.y = lift;
+      hinge.add(surface);
+      this[name] = hinge;
+      this.jetGroup.add(hinge);
     }
+  }
 
-    // Canted fins. Each one hinges about its own base so the rudders swing
-    // together instead of the tail assembly twisting.
+  /** Fins that swing with yaw. Each hinges about its own base so a canted pair
+   * swings together instead of the tail assembly twisting. */
+  buildRudders(specs) {
     this.rudders = [];
-    for (const side of [1, -1]) {
+    for (const {
+      position,
+      cant = 0,
+      outline,
+      thickness = 0.2,
+      bevel = 0.05,
+    } of specs) {
       const hinge = new this.THREE.Group();
-      hinge.position.set(side * 1.75, 0.6, -5.4);
-      const cant = new this.THREE.Group();
-      cant.rotation.z = -side * 0.47;
-      cant.add(
-        this.createUprightPanel(
-          [
-            [2.3, 0],
-            [0.1, 3.4],
-            [-1.1, 3.4],
-            [-2.3, 0],
-          ],
-          0.2,
-          this.fuselageMat,
-          0.05,
-        ),
+      hinge.position.set(...position);
+      const canted = new this.THREE.Group();
+      canted.rotation.z = cant;
+      canted.add(
+        this.createUprightPanel(outline, thickness, this.fuselageMat, bevel),
       );
-      hinge.add(cant);
+      hinge.add(canted);
       this.rudders.push(hinge);
       this.jetGroup.add(hinge);
     }
   }
-  buildGear() {
+  buildGear({ nose, left, right }) {
     const gearMat = new this.THREE.MeshStandardMaterial({
       color: 0x444444,
       roughness: 0.8,
@@ -320,15 +344,9 @@ export class AircraftModel {
       metalness: 0.1,
     });
 
-    this.noseGearPivot = this.createGearPivot(0, -0.9, 5.2, gearMat, tireMat);
-    this.leftGearPivot = this.createGearPivot(1.9, -0.9, -1, gearMat, tireMat);
-    this.rightGearPivot = this.createGearPivot(
-      -1.9,
-      -0.9,
-      -1,
-      gearMat,
-      tireMat,
-    );
+    this.noseGearPivot = this.createGearPivot(...nose, gearMat, tireMat);
+    this.leftGearPivot = this.createGearPivot(...left, gearMat, tireMat);
+    this.rightGearPivot = this.createGearPivot(...right, gearMat, tireMat);
 
     this.jetGroup.add(
       this.noseGearPivot,
@@ -363,34 +381,23 @@ export class AircraftModel {
   }
   buildPhysics(physicsMaterial) {
     this.jetBody = new this.CANNON.Body({
-      mass: AIRCRAFT_CONFIG.mass,
-      position: new this.CANNON.Vec3(0, AIRCRAFT_CONFIG.initialAltitude, 0),
-      velocity: new this.CANNON.Vec3(0, 0, AIRCRAFT_CONFIG.initialSpeed),
+      mass: this.config.mass,
+      position: new this.CANNON.Vec3(0, this.config.initialAltitude, 0),
+      velocity: new this.CANNON.Vec3(0, 0, this.config.initialSpeed),
       material: physicsMaterial,
       linearDamping: 0.4,
       angularDamping: 0.8,
     });
-    // Compound collision body: narrow fuselage, wings, tail and three gear feet.
-    this.jetBody.addShape(
-      new this.CANNON.Box(new this.CANNON.Vec3(1.2, 1.2, 5)),
-    );
-    this.jetBody.addShape(
-      new this.CANNON.Box(new this.CANNON.Vec3(6, 0.15, 2)),
-      new this.CANNON.Vec3(0, 0, -1),
-    );
-    this.jetBody.addShape(
-      new this.CANNON.Box(new this.CANNON.Vec3(4.5, 0.12, 1.8)),
-      new this.CANNON.Vec3(0, 0.2, -6.9),
-    );
-    for (const offset of [
-      [0, -1.45, 5],
-      [-2, -1.45, -1],
-      [2, -1.45, -1],
-    ])
+    // Compound collision body: fuselage, wings, tail and three gear feet.
+    for (const { box, sphere, at } of this.airframe.collision) {
+      const shape = box
+        ? new this.CANNON.Box(new this.CANNON.Vec3(...box))
+        : new this.CANNON.Sphere(sphere);
       this.jetBody.addShape(
-        new this.CANNON.Sphere(0.25),
-        new this.CANNON.Vec3(...offset),
+        shape,
+        at ? new this.CANNON.Vec3(...at) : undefined,
       );
+    }
     this.world.addBody(this.jetBody);
 
     this.jetBody.addEventListener("collide", (e) => {
@@ -425,6 +432,7 @@ export class AircraftModel {
       input.throttle,
       input,
       input.gearDown,
+      this.config,
     );
     const worldForce = new this.CANNON.Vec3(
       forces.localForce.x,
@@ -478,7 +486,8 @@ export class AircraftModel {
     // level is part of the look and not just frame smoothing.
     const burnerAlpha = 1 - Math.pow(1 - 0.08, deltaTime * 60);
     this.afterburnerLevel +=
-      (afterburnerIntensity(input.throttle) - this.afterburnerLevel) *
+      (afterburnerIntensity(input.throttle, this.config) -
+        this.afterburnerLevel) *
       burnerAlpha;
     this.afterburner.update(this.afterburnerLevel, deltaTime);
 
@@ -514,8 +523,8 @@ export class AircraftModel {
     this.wheelRate = 0;
     this.groundContactAge = Infinity;
     for (const wheel of this.wheels) wheel.rotation.x = 0;
-    this.jetBody.position.set(0, AIRCRAFT_CONFIG.initialAltitude, 0);
-    this.jetBody.velocity.set(0, 0, AIRCRAFT_CONFIG.initialSpeed);
+    this.jetBody.position.set(0, this.config.initialAltitude, 0);
+    this.jetBody.velocity.set(0, 0, this.config.initialSpeed);
     this.jetBody.angularVelocity.set(0, 0, 0);
     this.jetBody.quaternion.set(0, 0, 0, 1);
   }
