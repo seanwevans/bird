@@ -6,9 +6,38 @@
     <title>Aerodynamics Flight Simulator</title>
 
     <link rel="stylesheet" href="style.css" />
+
+    <script>
+      // style.css and src/main.js both import bare module specifiers, which
+      // only the build step resolves. Opened any other way this page comes up
+      // unstyled with no simulator and no explanation, so time the boot and
+      // say what is wrong. main.js clears this as soon as it runs.
+      window.__bootTimeout = setTimeout(function () {
+        var hint = document.getElementById("build-hint");
+        if (hint) hint.hidden = false;
+      }, 6000);
+    </script>
   </head>
 
   <body>
+    <div id="build-hint" hidden>
+      <h1>This page needs a build step</h1>
+      <p>
+        Three.js, Cannon and Tailwind are bundled from
+        <code>node_modules</code> rather than fetched from a CDN, so
+        <code>index.html</code> can no longer be opened straight from disk or
+        served as a plain static file. From the repository root:
+      </p>
+      <pre>
+npm install
+npm run dev</pre>
+      <p>
+        Then open the URL Vite prints. If a dev server was already running,
+        restart it — a refresh will not pick up new dependencies. To deploy
+        statically, run <code>npm run build</code> and serve <code>dist/</code>.
+      </p>
+    </div>
+
     <div id="canvas-container"></div>
 
     <div
