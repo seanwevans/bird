@@ -23,6 +23,16 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Adjustable wind visualization
 - Keyboard and gamepad support
 
+## Play it
+
+The `main` branch deploys to GitHub Pages on every push, so the playable build
+is always live at the repository's Pages URL — no checkout, no build step.
+
+Enable it once under **Settings → Pages → Source: GitHub Actions**; the workflow
+in `.github/workflows/pages.yml` does the rest. Assets are built with a relative
+base, so the site works from a project subpath (`user.github.io/bird/`) as well
+as from a domain root.
+
 ## Development
 
 Install the pinned dependencies and start Vite:
