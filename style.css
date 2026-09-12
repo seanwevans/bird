@@ -67,6 +67,28 @@ body {
     visibility 0s 400ms;
 }
 
+/* Aircraft picker on the start screen. Deliberately not `.view-btn`: the HUD
+   collects those by class to drive the sensor views. */
+.craft-btn {
+  border: 1px solid rgb(71 85 105 / 0.8);
+  border-radius: 0.5rem;
+  background-color: rgb(30 41 59 / 0.8);
+  padding: 0.5rem 0.5rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  transition: all 150ms ease;
+}
+
+.craft-btn:hover {
+  background-color: rgb(51 65 85 / 0.9);
+}
+
+.craft-btn.active {
+  border-color: rgba(0, 255, 255, 0.6);
+  background-color: rgba(0, 255, 255, 0.15);
+  color: #67e8f9;
+}
+
 /* The HUD is dark and low contrast, so the browser default focus ring is easy
    to lose. Keyboard users get an explicit one; mouse users still get none. */
 :focus-visible {

@@ -160,6 +160,46 @@
           airflow instead.
         </p>
 
+        <div>
+          <div
+            id="airframe-label"
+            class="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-slate-500"
+          >
+            Aircraft
+          </div>
+          <div
+            role="group"
+            aria-labelledby="airframe-label"
+            class="grid grid-cols-2 gap-2"
+          >
+            <button
+              type="button"
+              aria-pressed="true"
+              data-airframe="f22"
+              data-tagline="Heavy, thrust-rich, twin canted fins."
+              class="craft-btn active"
+            >
+              F-22 Raptor
+            </button>
+            <button
+              type="button"
+              aria-pressed="false"
+              data-airframe="f16"
+              data-tagline="Light and single-engined. Rolls fastest, stalls soonest."
+              class="craft-btn"
+            >
+              F-16 Fighting Falcon
+            </button>
+          </div>
+          <p
+            id="airframe-tagline"
+            aria-live="polite"
+            class="mt-2 min-h-[1.5rem] text-center text-[11px] text-slate-400"
+          >
+            Heavy, thrust-rich, twin canted fins.
+          </p>
+        </div>
+
         <dl
           class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 font-mono text-xs text-slate-300"
         >

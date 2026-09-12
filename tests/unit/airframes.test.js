@@ -4,7 +4,10 @@ import { AircraftModel } from "../../src/rendering/AircraftModel.js";
 import {
   AIRFRAMES,
   DEFAULT_AIRFRAME,
+  airframeById,
 } from "../../src/rendering/airframes/index.js";
+import { F16_AIRFRAME } from "../../src/rendering/airframes/F16.js";
+import { F22_AIRFRAME } from "../../src/rendering/airframes/F22.js";
 
 const vector = (x = 0, y = 0, z = 0) => ({
   x,
@@ -193,6 +196,13 @@ describe("airframe registry", () => {
     expect(AIRFRAMES.length).toBeGreaterThan(0);
   });
 
+  it("resolves ids and falls back to the default", () => {
+    expect(airframeById("f22")).toBe(F22_AIRFRAME);
+    expect(airframeById("f16")).toBe(F16_AIRFRAME);
+    expect(airframeById("mig")).toBe(DEFAULT_AIRFRAME);
+    expect(airframeById(undefined)).toBe(DEFAULT_AIRFRAME);
+  });
+
   it("gives every airframe a unique id and the parts the model needs", () => {
     const ids = AIRFRAMES.map((airframe) => airframe.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -211,6 +221,16 @@ describe("airframe registry", () => {
       for (const key of ["mass", "thrust", "wingArea", "stallAngle"])
         expect(airframe.config[key]).toBeGreaterThan(0);
     }
+  });
+  it("flies the F-16 lighter and rolls it harder than the F-22", () => {
+    expect(F16_AIRFRAME.config.mass).toBeLessThan(F22_AIRFRAME.config.mass);
+    expect(F16_AIRFRAME.config.thrust).toBeLessThan(F22_AIRFRAME.config.thrust);
+    expect(F16_AIRFRAME.config.wingArea).toBeLessThan(
+      F22_AIRFRAME.config.wingArea,
+    );
+    expect(F16_AIRFRAME.config.rollMoment).toBeGreaterThan(
+      F22_AIRFRAME.config.rollMoment,
+    );
   });
 });
 
