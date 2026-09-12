@@ -135,6 +135,16 @@ plane and carry a polygon offset as well: at kilometre range the depth buffer
 resolves in metres, and a lift small enough to be invisible is not enough on its
 own to keep the paving in front of the ground.
 
+## Airframes
+
+Each aircraft lives under `src/rendering/airframes/` as a `build` function for
+the shapes that are its own, plus data for the parts every aircraft has —
+stabilator and rudder hinges, gear positions, nozzle exits, collision shapes —
+and its flight config. `AircraftModel` supplies the machinery around that:
+hinging the control surfaces, animating them, building the physics body, and
+running the flight model. Adding an aircraft means adding a file and listing it
+in `airframes/index.js`.
+
 ## Aerodynamic model and units
 
 The physics model uses SI units internally: metres (m), seconds (s), kilograms
