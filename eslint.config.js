@@ -12,6 +12,7 @@ export default [
       globals: {
         CustomEvent: "readonly",
         document: "readonly",
+        clearTimeout: "readonly",
         KeyboardEvent: "readonly",
         navigator: "readonly",
         process: "readonly",

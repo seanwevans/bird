@@ -32,8 +32,15 @@ npm ci
 npm run dev
 ```
 
-Vite prints the local URL to open in a modern browser. The simulator remains a
-static application and the production output can be generated with `npm run build`.
+Vite prints the local URL to open in a modern browser.
+
+> **`index.html` needs the build step.** Three.js, Cannon and Tailwind are
+> bundled from `node_modules` rather than fetched from CDNs, so opening
+> `index.html` from disk or serving it as a plain static file no longer works —
+> the bare module imports do not resolve, and the page comes up unstyled with no
+> simulator. It says so on the page if that happens. After pulling, run
+> `npm install` and restart any dev server that was already running. The simulator remains a
+> static application and the production output can be generated with `npm run build`.
 
 Three.js and Cannon are pinned in `package.json` and bundled by Vite. They are
 passed into `FlightSimulator` from `src/main.js`, so every module still receives
