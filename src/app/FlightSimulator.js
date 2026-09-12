@@ -2,6 +2,10 @@ import { InputController } from "../input/InputController.js";
 import { createPhysicsWorld } from "../physics/PhysicsWorld.js";
 import { metersPerSecondToFeetPerMinute } from "../physics/UnitConversions.js";
 import { AircraftModel } from "../rendering/AircraftModel.js";
+import {
+  DEFAULT_AIRFRAME,
+  airframeById,
+} from "../rendering/airframes/index.js";
 import { Environment } from "../rendering/Environment.js";
 import { Renderer } from "../rendering/Renderer.js";
 import { WindVisualization } from "../rendering/WindVisualization.js";
@@ -66,19 +70,7 @@ export class FlightSimulator {
       { THREE, CANNON },
     );
     this.pendingCrash = false;
-    this.aircraft = new AircraftModel(
-      this.scene,
-      this.world,
-      this.physicsMaterial,
-      () => {
-        this.pendingCrash = true;
-        this.input.needReset = true;
-      },
-      { THREE, CANNON, eventTarget: window },
-    );
-    // Compatibility name for integrations that previously accessed `jet`.
-    this.jet = this.aircraft;
-    this.wind = new WindVisualization(this.aircraft.jetGroup, { THREE });
+    this.buildAircraft(DEFAULT_AIRFRAME);
     this.world.addEventListener("preStep", () => {
       if (!this.paused && this.started)
         this.aircraft.applyFlightPhysics(this.input);
@@ -95,6 +87,7 @@ export class FlightSimulator {
     this.startScreen = new StartScreen({
       document,
       onStart: () => this.start(),
+      onSelect: (id) => this.selectAircraft(id),
     });
     // With no overlay in the page — an embedded or test document — there is
     // nothing to dismiss, so the flight begins immediately.
@@ -103,6 +96,42 @@ export class FlightSimulator {
     this.ui.updateGear(this.input.gearDown);
     this.ui.updateAerodynamics(this.aircraft.flightData);
     this.ui.updatePaused(this.paused);
+  }
+
+  /** Put an aircraft into the scene and the physics world, replacing whatever
+   * was flying before. */
+  buildAircraft(airframe) {
+    this.aircraft?.dispose();
+    this.aircraft = new AircraftModel(
+      this.scene,
+      this.world,
+      this.physicsMaterial,
+      () => {
+        this.pendingCrash = true;
+        this.input.needReset = true;
+      },
+      {
+        THREE: this.THREE,
+        CANNON: this.CANNON,
+        eventTarget: this.window,
+        airframe,
+      },
+    );
+    this.airframe = airframe;
+    // Compatibility name for integrations that previously accessed `jet`.
+    this.jet = this.aircraft;
+    this.wind = new WindVisualization(this.aircraft.jetGroup, {
+      THREE: this.THREE,
+    });
+    this.ui.updateAerodynamics(this.aircraft.flightData);
+  }
+
+  /** Swap aircraft from the start screen. Once the flight is under way the
+   * choice is fixed: rebuilding mid-air would teleport the player. */
+  selectAircraft(id) {
+    const airframe = airframeById(id);
+    if (this.started || airframe === this.airframe) return;
+    this.buildAircraft(airframe);
   }
 
   start() {

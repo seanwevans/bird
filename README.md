@@ -8,6 +8,8 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 
 ## Features
 
+- A choice of aircraft — F-22, F-16 and SR-71 — each with its own airframe
+  and flight model
 - A start screen over a live orbiting preview of the aircraft
 - Physics-driven flight powered by Cannon.js, including angle of attack,
   sideslip, stalls, induced drag, and altitude-dependent air density
@@ -61,6 +63,22 @@ flight always begins from the same state however long the screen is left up.
 
 A page with no `#start-screen` element, such as an embedded or test document,
 starts flying immediately.
+
+## Aircraft
+
+Pick one on the start screen; the preview swaps to it straight away. The choice
+is fixed once the flight begins, because rebuilding mid-air would teleport you.
+The SR-71 starts higher and faster than the fighters.
+
+|                          | Character                                                             |
+| ------------------------ | --------------------------------------------------------------------- |
+| **F-22 Raptor**          | Heavy, thrust-rich, twin canted fins.                                 |
+| **F-16 Fighting Falcon** | Light and single-engined. Rolls fastest, stalls soonest.              |
+| **SR-71 Blackbird**      | Enormous and fast. Wide turns, thin margins, lights the burner early. |
+
+Adding an aircraft means adding a file under `src/rendering/airframes/`, listing
+it in `airframes/index.js`, and adding a button carrying its `data-airframe` id
+to the start screen.
 
 ## Controls
 

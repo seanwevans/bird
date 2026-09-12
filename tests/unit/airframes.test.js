@@ -4,7 +4,11 @@ import { AircraftModel } from "../../src/rendering/AircraftModel.js";
 import {
   AIRFRAMES,
   DEFAULT_AIRFRAME,
+  airframeById,
 } from "../../src/rendering/airframes/index.js";
+import { F16_AIRFRAME } from "../../src/rendering/airframes/F16.js";
+import { F22_AIRFRAME } from "../../src/rendering/airframes/F22.js";
+import { SR71_AIRFRAME } from "../../src/rendering/airframes/SR71.js";
 
 const vector = (x = 0, y = 0, z = 0) => ({
   x,
@@ -193,6 +197,14 @@ describe("airframe registry", () => {
     expect(AIRFRAMES.length).toBeGreaterThan(0);
   });
 
+  it("resolves ids and falls back to the default", () => {
+    expect(airframeById("f22")).toBe(F22_AIRFRAME);
+    expect(airframeById("f16")).toBe(F16_AIRFRAME);
+    expect(airframeById("sr71")).toBe(SR71_AIRFRAME);
+    expect(airframeById("mig")).toBe(DEFAULT_AIRFRAME);
+    expect(airframeById(undefined)).toBe(DEFAULT_AIRFRAME);
+  });
+
   it("gives every airframe a unique id and the parts the model needs", () => {
     const ids = AIRFRAMES.map((airframe) => airframe.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -211,6 +223,45 @@ describe("airframe registry", () => {
       for (const key of ["mass", "thrust", "wingArea", "stallAngle"])
         expect(airframe.config[key]).toBeGreaterThan(0);
     }
+  });
+  it("flies the SR-71 fast and heavy rather than agile", () => {
+    for (const other of [F22_AIRFRAME, F16_AIRFRAME]) {
+      expect(SR71_AIRFRAME.config.mass).toBeGreaterThan(other.config.mass);
+      expect(SR71_AIRFRAME.config.wingArea).toBeGreaterThan(
+        other.config.wingArea,
+      );
+      // Drag scales with wing area, so thrust has to be read against it:
+      // matching the fighters' raw thrust leaves it settling slower.
+      const perArea = ({ thrust, wingArea }) => thrust / wingArea;
+      expect(perArea(SR71_AIRFRAME.config)).toBeGreaterThan(
+        perArea(other.config),
+      );
+      // Big and fast, but it will not turn with either of them.
+      expect(
+        SR71_AIRFRAME.config.rollMoment / SR71_AIRFRAME.config.mass,
+      ).toBeLessThan(other.config.rollMoment / other.config.mass);
+      expect(SR71_AIRFRAME.config.stallAngle).toBeLessThan(
+        other.config.stallAngle,
+      );
+    }
+    // It starts higher and faster than the fighters.
+    expect(SR71_AIRFRAME.config.initialAltitude).toBeGreaterThan(
+      F22_AIRFRAME.config.initialAltitude,
+    );
+    expect(SR71_AIRFRAME.config.initialSpeed).toBeGreaterThan(
+      F22_AIRFRAME.config.initialSpeed,
+    );
+  });
+
+  it("flies the F-16 lighter and rolls it harder than the F-22", () => {
+    expect(F16_AIRFRAME.config.mass).toBeLessThan(F22_AIRFRAME.config.mass);
+    expect(F16_AIRFRAME.config.thrust).toBeLessThan(F22_AIRFRAME.config.thrust);
+    expect(F16_AIRFRAME.config.wingArea).toBeLessThan(
+      F22_AIRFRAME.config.wingArea,
+    );
+    expect(F16_AIRFRAME.config.rollMoment).toBeGreaterThan(
+      F22_AIRFRAME.config.rollMoment,
+    );
   });
 });
 
