@@ -1,4 +1,5 @@
 import { createSeededRandom } from "../utils/Random.js";
+import { CLOUD_CONFIG, Clouds } from "./Clouds.js";
 import { Runway } from "./Runway.js";
 
 export const GROUND_Y = -2;
@@ -22,7 +23,7 @@ export class Environment {
     scene,
     physicsWorld,
     physicsMaterial,
-    { THREE, CANNON, random, city = CITY_CONFIG },
+    { THREE, CANNON, random, city = CITY_CONFIG, clouds = CLOUD_CONFIG },
   ) {
     this.THREE = THREE;
     this.CANNON = CANNON;
@@ -37,6 +38,7 @@ export class Environment {
     this.buildGround();
     this.buildRunway();
     this.buildCity();
+    this.buildClouds(clouds);
   }
   buildLighting() {
     // Three.js dropped the legacy lighting mode in r155: punctual light
@@ -97,6 +99,9 @@ export class Environment {
       THREE: this.THREE,
       groundY: GROUND_Y,
     });
+  }
+  buildClouds(config) {
+    this.clouds = new Clouds(this.scene, { THREE: this.THREE, config });
   }
   /** Draw a site for one block, rerolling any that would land on the runway or
    * its approach. The generator is seeded, so this stays deterministic. */

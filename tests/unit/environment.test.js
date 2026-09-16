@@ -30,6 +30,11 @@ const THREE = {
     }
   },
   PlaneGeometry: class {},
+  SphereGeometry: class {
+    constructor(radius, widthSegments, heightSegments) {
+      Object.assign(this, { radius, widthSegments, heightSegments });
+    }
+  },
   Mesh: class {
     constructor(geometry, material) {
       Object.assign(this, { geometry, material }, node());
@@ -41,8 +46,12 @@ const THREE = {
     }
   },
   Matrix4: class {
-    compose({ x, y, z }, quaternion, scale) {
-      Object.assign(this, { x, y, z, scale: { ...scale } });
+    makeTranslation(x, y, z) {
+      Object.assign(this, { x, y, z });
+      return this;
+    }
+    compose(position, quaternion, scale) {
+      Object.assign(this, position, { scale: { ...scale } });
       return this;
     }
   },
@@ -154,7 +163,8 @@ describe("environment", () => {
     const meshes = scene.objects.filter(
       (object) => object instanceof THREE.InstancedMesh,
     );
-    expect(meshes).toEqual([environment.cityBlocks]);
+    // The whole city is one draw call, and the sky above it is a second.
+    expect(meshes).toEqual([environment.cityBlocks, environment.clouds.mesh]);
     expect(environment.cityBlocks.count).toBe(smallCity.blockCount);
     expect(environment.cityBlocks.instanceMatrix.needsUpdate).toBe(true);
     // The instances sit far outside the base geometry's bounding sphere.
@@ -196,8 +206,16 @@ describe("environment", () => {
     );
   });
 
-  it("gives the blocks a range of heights rather than one flat slab", () => {
-    const city = { ...CITY_CONFIG, blockCount: 400 };
+  it("leaves the sky out of the physics world", () => {
+    const { world } = build({ city: smallCity });
+
+    // Clouds are scenery: an aircraft flies through them, so the only bodies
+    // are the ground and the buildings.
+    expect(world.bodies).toHaveLength(smallCity.blockCount + 1);
+  });
+
+  it("sits each building on the ground rather than half-buried", () => {
+    const city = { ...smallCity, blockHeight: 250 };
     const { world } = build({ city });
     const heights = buildingHeights(world);
     const midpoint = (city.minBlockHeight + city.maxBlockHeight) / 2;
