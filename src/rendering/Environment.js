@@ -6,7 +6,13 @@ export const GROUND_Y = -2;
 export const CITY_CONFIG = Object.freeze({
   seed: 20240517,
   blockCount: 1000,
-  blockHeight: 100,
+  /** Blocks are drawn between these two heights. The ceiling stays well under
+   * the 150 m the aircraft spawns at, since a block may land on the origin. */
+  minBlockHeight: 30,
+  maxBlockHeight: 120,
+  /** Exponent on the height draw. Above 1 it leans the skyline towards low
+   * blocks, which leaves the towers standing out as towers. */
+  heightBias: 1.4,
   blockWidth: 20,
   spread: 4000,
 });
@@ -105,19 +111,23 @@ export class Environment {
     }
     return site;
   }
-  buildCity({ blockCount, blockHeight, blockWidth, spread } = this.city) {
-    const blockGeo = new this.THREE.BoxGeometry(
-      blockWidth,
-      blockHeight,
-      blockWidth,
+  /** Draw a height for one block. The bias skews the draw towards the bottom
+   * of the range, so a tower stays rarer than a low-rise block. */
+  pickBlockHeight({ minBlockHeight, maxBlockHeight, heightBias } = this.city) {
+    return (
+      minBlockHeight +
+      (maxBlockHeight - minBlockHeight) * this.random() ** heightBias
     );
+  }
+  buildCity(city = this.city) {
+    const { blockCount, blockWidth, spread } = city;
+    // One block of unit height, stretched per instance, so a skyline of mixed
+    // heights still comes off a single geometry.
+    const blockGeo = new this.THREE.BoxGeometry(blockWidth, 1, blockWidth);
     const blockMat = new this.THREE.MeshStandardMaterial({
       color: 0xdddddd,
       roughness: 0.8,
     });
-    const blockShape = new this.CANNON.Box(
-      new this.CANNON.Vec3(blockWidth / 2, blockHeight / 2, blockWidth / 2),
-    );
 
     // Every block shares one geometry and material, so they draw as a single
     // instanced mesh instead of a thousand separate draw calls per frame.
@@ -132,18 +142,32 @@ export class Environment {
     // left the view. One draw call is cheap enough to always submit.
     this.cityBlocks.frustumCulled = false;
     const transform = new this.THREE.Matrix4();
+    const upright = new this.THREE.Quaternion();
+    const position = new this.THREE.Vector3();
+    const scale = new this.THREE.Vector3();
 
     for (let i = 0; i < blockCount; i++) {
       const { x, z } = this.pickBlockSite(spread);
-      const y = blockHeight / 2;
+      const height = this.pickBlockHeight(city);
+      const y = height / 2;
 
-      this.cityBlocks.setMatrixAt(i, transform.makeTranslation(x, y, z));
+      position.set(x, y, z);
+      scale.set(1, height, 1);
+      this.cityBlocks.setMatrixAt(
+        i,
+        transform.compose(position, upright, scale),
+      );
 
       const blockBody = new this.CANNON.Body({
         mass: 0,
         material: this.physicsMaterial,
       });
-      blockBody.addShape(blockShape);
+      // Each block needs its own box: the shape carries the height.
+      blockBody.addShape(
+        new this.CANNON.Box(
+          new this.CANNON.Vec3(blockWidth / 2, y, blockWidth / 2),
+        ),
+      );
       blockBody.position.set(x, y, z);
       blockBody.isBuilding = true;
       this.world.addBody(blockBody);

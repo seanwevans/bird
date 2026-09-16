@@ -18,6 +18,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
   throttle, and landing gear HUD readouts
 - Twin afterburner plumes with shock diamonds above the throttle detent
 - Thermal, laminar, velocity, and X-ray sensor views
+- A seeded skyline of mixed-height blocks, low-rise with the odd tower
 - A marked runway north of the city to fly approaches to, with gear wheels
   that spin up on touchdown and free-wheel down after lift-off
 - Adjustable wind visualization
@@ -199,6 +200,14 @@ constant 343 m/s speed of sound.
 The skyline is generated from a seeded generator in `Random.js`, so the city —
 and every collision with it — is the same on every load. Pass a `random`
 function or a `city` override to `Environment` to vary it.
+
+Each block draws its own height between `minBlockHeight` and `maxBlockHeight`,
+biased towards the bottom of the range by `heightBias` so the towers stay rare
+enough to read as towers. The blocks are still one instanced mesh and one draw
+call: the geometry is a box of unit height that each instance stretches, and
+each block gets a collision box matching the height it was drawn at. The top of
+the range stays below the 150 m spawn altitude, because nothing keeps a block
+off the origin the aircraft appears over.
 
 Lift and profile drag coefficients are linearly interpolated from the tables in
 `AircraftConfig.js`. Lift falls after the configured 15-degree stall angle;
