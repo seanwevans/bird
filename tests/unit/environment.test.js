@@ -29,6 +29,11 @@ const THREE = {
     }
   },
   PlaneGeometry: class {},
+  SphereGeometry: class {
+    constructor(radius, widthSegments, heightSegments) {
+      Object.assign(this, { radius, widthSegments, heightSegments });
+    }
+  },
   Mesh: class {
     constructor(geometry, material) {
       Object.assign(this, { geometry, material }, node());
@@ -44,8 +49,8 @@ const THREE = {
       Object.assign(this, { x, y, z });
       return this;
     }
-    compose(position) {
-      Object.assign(this, position);
+    compose(position, quaternion, scale) {
+      Object.assign(this, position, { scale: { ...scale } });
       return this;
     }
   },
@@ -156,7 +161,8 @@ describe("environment", () => {
     const meshes = scene.objects.filter(
       (object) => object instanceof THREE.InstancedMesh,
     );
-    expect(meshes).toEqual([environment.cityBlocks]);
+    // The whole city is one draw call, and the sky above it is a second.
+    expect(meshes).toEqual([environment.cityBlocks, environment.clouds.mesh]);
     expect(environment.cityBlocks.count).toBe(smallCity.blockCount);
     expect(environment.cityBlocks.instanceMatrix.needsUpdate).toBe(true);
     // The instances sit far outside the base geometry's bounding sphere.
@@ -189,6 +195,14 @@ describe("environment", () => {
         0.25 * spread,
       ]),
     );
+  });
+
+  it("leaves the sky out of the physics world", () => {
+    const { world } = build({ city: smallCity });
+
+    // Clouds are scenery: an aircraft flies through them, so the only bodies
+    // are the ground and the buildings.
+    expect(world.bodies).toHaveLength(smallCity.blockCount + 1);
   });
 
   it("sits each building on the ground rather than half-buried", () => {

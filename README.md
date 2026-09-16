@@ -20,6 +20,7 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 - Thermal, laminar, velocity, and X-ray sensor views
 - A marked runway north of the city to fly approaches to, with gear wheels
   that spin up on touchdown and free-wheel down after lift-off
+- A seeded field of low-poly cumulus over the city to judge height against
 - Adjustable wind visualization
 - Keyboard and gamepad support
 
@@ -169,6 +170,18 @@ free-wheel down once airborne. Their materials are lifted clear of the ground
 plane and carry a polygon offset as well: at kilometre range the depth buffer
 resolves in metres, and a lift small enough to be invisible is not enough on its
 own to keep the paving in front of the ground.
+
+## Sky
+
+Clouds are clumps of flat-shaded spheres scattered above the city by `Clouds.js`,
+all of them stamped from one instanced mesh so the whole sky costs a single draw
+call. `CLOUD_CONFIG` holds how many there are, how big they get, and the altitude
+band they sit in — between the skyline and the camera's far plane, so they give
+something to judge height against without popping in and out at range.
+
+They are scenery only: no collision body, so an aircraft flies straight through
+one. The field has its own seed, separate from the city's, so retuning the sky
+never moves a building and never changes a collision.
 
 ## Airframes
 
