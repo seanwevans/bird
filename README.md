@@ -6,7 +6,6 @@ A browser-based 3D flight simulator that combines real-time physics, aerodynamic
 
 <img width="960" alt="VRRRROOOOOOM" src="https://github.com/user-attachments/assets/4d2602a0-52b9-438d-a3c5-6c464c071780" />
 
-
 ## Features
 
 - A choice of aircraft — F-22, F-16 and SR-71 — each with its own airframe
